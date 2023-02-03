@@ -1,6 +1,0 @@
-[submodule "datavyz"]
-	path = datavyz
-	url = https://github.com/yzerlaut/datavyz
-[submodule "physion"]
-	path = physion
-	url = https://github.com/yzerlaut/physion
