@@ -377,7 +377,7 @@ for index, protocol_id in zip(indices, [0,0,0,2,2,0]):
                     weight='bold', fontsize=6, color=(plt.cm.tab10(2) if responsive else plt.cm.tab10(3)))
         
         ge.save_on_desktop(fig, 'fig-%i.png' % index, dpi=300)
-        
+
 
 # %%
 Nsamples = 10

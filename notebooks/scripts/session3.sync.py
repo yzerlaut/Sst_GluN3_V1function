@@ -13,8 +13,19 @@
 #     name: python3
 # ---
 
-# %%
-print('keep this line')
+# %% [markdown]
+# # Session 3: Analysis
+#
+# N.B. now one generates a pdf per recording for the different protocols:
+#
+# - For the luminosity and orientation selectivity protocol:
+#     ```
+#     python src/pdf_lum_with_tuning.py your-datafile-file.nwb
+#     ```
+# - For the surround suppression protocol (analysis included in physion)
+#     ```
+#     python src/pdf_lum_with_tuning.py your-datafile-file.nwb
+#     ```
 
 # %%
 # general python modules
@@ -23,8 +34,7 @@ import numpy as np
 import matplotlib.pylab as plt
 
 # *_-= physion =-_*
-#physion_folder = os.path.join(os.path.expanduser('~'), 'work', 'SST_GluN3_V1function', 'physion') # UPDATE to your folder location
-physion_folder = os.path.join(os.path.expanduser('~'), 'work', 'physion') # UPDATE to your folder location
+physion_folder = os.path.join('..', '..', 'physion') # UPDATE to your folder location
 # -- physion core
 sys.path.append(os.path.join(physion_folder, 'src'))
 from physion.analysis.read_NWB import Data, scan_folder_for_NWBfiles
@@ -74,6 +84,9 @@ for index in indices:
     data.io.close()
 
 # %%
+data.protocols
+
+# %%
 for index in [6,7]:
     np.random.seed(10)
     data = MultimodalData(FILES[index])
@@ -121,33 +134,42 @@ for index in [5,8]:
                 (0.5,0), ha='center', size='small')
     ge.save_on_desktop(fig, 'fig-%i.png' % index, dpi=300)
 
+# %%
+data.protocols
+
 # %% [markdown]
 # ### analysis
 
 # %%
-summary = {'dark':[],
-           'grey':[],
-           'black':[]}
+from scipy.stats import skew
 
-for index in [6,7]:
-    data = Data(FILES[index])
-    data.build_dFoF()
-    for tstart, tstop, label in zip(data.nwbfile.stimulus['time_start_realigned'].data[:3],
-                                    data.nwbfile.stimulus['time_stop_realigned'].data[:3],
-                                    ['dark', 'black', 'grey']):
-        t_cond = (data.t_dFoF>tstart) & (data.t_dFoF<tstop)
-        for roi in range(data.nROIs):
-            summary[label].append(data.dFoF[roi, t_cond].mean())
+
+def annotate_luminosity_and_get_summary(data, args, ax):
+    
+    summary = {}
+    for lum in ['dark' ,'grey', 'black']:
+        summary[lum] = {}
+        for key in ['mean', 'std', 'skew']:
+            summary[lum][key] = []
             
-for index in [5,8]:
-    data = Data(FILES[index])
-    data.build_dFoF()
-    for tstart, tstop, label in zip(data.nwbfile.stimulus['time_start_realigned'].data[-3:],
-                                    data.nwbfile.stimulus['time_stop_realigned'].data[-3:],
-                                    ['dark', 'black', 'grey']):
+    
+    if 'BlankFirst' in data.metadata['protocol']:
+        tstarts = data.nwbfile.stimulus['time_start_realigned'].data[:3]
+        tstops = data.nwbfile.stimulus['time_stop_realigned'].data[:3]
+    elif 'BlankLast' in data.metadata['protocol']:
+        tstarts = data.nwbfile.stimulus['time_start_realigned'].data[-3:]
+        tstops = data.nwbfile.stimulus['time_stop_realigned'].data[-3:]
+    else:
+        print(' Protocol not recognized !!  ')
+        
+    for tstart, tstop, lum in zip(tstarts, tstops, ['dark', 'black', 'grey']):
         t_cond = (data.t_dFoF>tstart) & (data.t_dFoF<tstop)
         for roi in range(data.nROIs):
-            summary[label].append(data.dFoF[roi, t_cond].mean())
+            for key, func in zip(['mean', 'std', 'skew'], [np.mean, np.std, skew]):
+                summary[lum][key].append(func(data.dFoF[t_cond]))
+                
+    return summary
+
 
 # %%
 fig, ax = ge.figure()
@@ -170,30 +192,9 @@ for i, protocols in enumerate(DATASET['protocols']):
         FILES.append(DATASET['files'][i])
 FILES = FILES[-1:] # limit to 1 for now !!
 
-
 # %%
-def selectivity_index(angles, resp):
-    """
-    computes the selectivity index: (Pref-Orth)/(Pref+Orth)
-    clipped in [0,1]
-    """
-    imax = np.argmax(resp)
-    iop = np.argmin(((angles[imax]+90)%(180)-angles)**2)
-    if (resp[imax]>0):
-        return min([1,max([0,(resp[imax]-resp[iop])/(resp[imax]+resp[iop])])])
-    else:
-        return 0
-
-def shift_orientation_according_to_pref(angle, 
-                                        pref_angle=0, 
-                                        start_angle=-45, 
-                                        angle_range=360):
-    new_angle = (angle-pref_angle)%angle_range
-    if new_angle>=angle_range+start_angle:
-        return new_angle-angle_range
-    else:
-        return new_angle
-
+sys.path.append('..', '..', 'src')
+from src.analysis import selectivity_index, shift_orientation_according_to_pref
 
 # %%
 FILES
@@ -204,8 +205,10 @@ from physion.utils import plot_tools as pt
 from physion.dataviz.episodes.trial_average import plot_trial_average
 
 
-stat_test_props = dict(interval_pre=[-1.5,0], interval_post=[0.5,2],
-                       test='ttest', positive=True)
+stat_test_props = dict(interval_pre=[-1.5,0], 
+                       interval_post=[0.5,2],
+                       test='ttest',
+                       positive=True)
 
 response_significance_threshold = 0.01
 
@@ -224,7 +227,8 @@ def cell_tuning_example_fig(filename,
     
     fig, AX = pt.plt.subplots(Nsamples, len(EPISODES.varied_parameters['angle']), 
                           figsize=(7,7))
-    plt.subplots_adjust(right=0.78, left=0.1, top=0.97, bottom=0.05, wspace=0.1, hspace=0.8)
+    plt.subplots_adjust(right=0.75, left=0.1, top=0.97, bottom=0.05, wspace=0.1, hspace=0.8)
+    
     for Ax in AX:
         for ax in Ax:
             ax.axis('off')
@@ -235,22 +239,25 @@ def cell_tuning_example_fig(filename,
         # SHOW trial-average
         plot_trial_average(EPISODES,
                            column_key='angle',
+                           color_key='contrast',
                            quantity='dFoF',
                            ybar=1., ybarlabel='1dF/F',
                            xbar=1., xbarlabel='1s',
                            roiIndex=r,
+                           color=['khaki', 'k'],
                            AX=[AX[i]], no_set=False)
         AX[i][0].annotate('roi #%i  ' % (r+1), (0,0), ha='right', xycoords='axes fraction')
 
         # SHOW summary angle dependence
-        inset = pt.inset(AX[i][-1], (2, 0.2, 1.2, 0.8))
+        inset = pt.inset(AX[i][-1], (2.2, 0.2, 1.2, 0.8))
 
         angles, y, sy, responsive_angles = [], [], [], []
         responsive = False
 
         for a, angle in enumerate(EPISODES.varied_parameters['angle']):
 
-            stats = EPISODES.stat_test_for_evoked_responses(episode_cond=EPISODES.find_episode_cond('angle', a),
+            stats = EPISODES.stat_test_for_evoked_responses(episode_cond=\
+                                            EPISODES.find_episode_cond(['angle', 'contrast'], [a,1]),
                                                             response_args=dict(quantity='dFoF', roiIndex=r),
                                                             **stat_test_props)
 
@@ -263,6 +270,7 @@ def cell_tuning_example_fig(filename,
                 responsive_angles.append(angle)
 
         pt.plot(angles, np.array(y), sy=np.array(sy), ax=inset)
+        inset.plot(angles, 0*np.array(angles), 'k:', lw=0.5)
         inset.set_ylabel('$\delta$dF/F     ')
         if i==(Nsamples-1):
             inset.set_xlabel('angle ($^{o}$)')
@@ -277,22 +285,25 @@ def cell_tuning_example_fig(filename,
     return fig
 
 fig = cell_tuning_example_fig(FILES[-1])
-#fig.savefig(os.path.join(os.path.expanduser('~'), 'Desktop', 'fig.png'), dpi=150)
+fig.savefig(os.path.join(os.path.expanduser('~'), 'Desktop', 'fig.png'), dpi=150)
 
 
 # %% [markdown]
 # ## Population summary
 
 # %%
-stat_test_props = dict(interval_pre=[-1.5,0], interval_post=[0.5,2],
-                       test='ttest', positive=True)
+stat_test_props = dict(interval_pre=[-1.5,0], 
+                       interval_post=[0.5,2],
+                       test='ttest',
+                       positive=True)
 
-response_significance_threshold = 0.01
+response_significance_threshold = 0.05
+
+fig, ax = pt.figure()
 
 def compute_response_per_cells(data):
     
     RESPONSES = []
-    Ntot, Nresp = 0, 0
 
     protocol_id = data.get_protocol_id(protocol_name='ff-gratings-8orientation-2contrasts-10repeats')
 
@@ -302,37 +313,43 @@ def compute_response_per_cells(data):
                            verbose=True)
                                
     shifted_angle = EPISODES.varied_parameters['angle']-EPISODES.varied_parameters['angle'][1]
-    Ntot += EPISODES.data.iscell.sum()
+    
+    for roi in np.arange(data.nROIs):
 
-    for roi in np.arange(EPISODES.data.iscell.sum()):
-
-        cell_resp = EPISODES.compute_summary_data(response_significance_threshold=response_significance_threshold,
+        cell_resp = EPISODES.compute_summary_data(response_significance_threshold=\
+                                                          response_significance_threshold,
                                                   response_args=dict(quantity='dFoF', roiIndex=roi),
                                                   stat_test_props=stat_test_props)
-
+        
         condition = np.ones(len(cell_resp['angle']), dtype=bool) # no condition
-
+        #condition = cell_resp['contrast']==1
+        
         if np.sum(cell_resp['significant'][condition]):
-
+            
             ipref = np.argmax(cell_resp['value'][condition])
             prefered_angle = cell_resp['angle'][condition][ipref]
 
+            print(prefered_angle)
             RESPONSES.append(np.zeros(len(shifted_angle)))
-            Nresp+=1
             
             for a, angle in enumerate(cell_resp['angle'][condition]):
-
+                print(a, angle)
                 new_angle = shift_orientation_according_to_pref(angle, 
                                                                 pref_angle=prefered_angle, 
                                                                 start_angle=shifted_angle[0], 
-                                                                angle_range=180)
+                                                                angle_range=shifted_angle[1]-shifted_angle[0])
                 iangle = np.argwhere(shifted_angle==new_angle)[0][0]
                 RESPONSES[-1][iangle] = cell_resp['value'][a] 
+            ax.plot(shifted_angle, RESPONSES[-1])
                 
-    return RESPONSES
+    return RESPONSES, shifted_angle
 
 data = Data(FILES[-1], verbose=False)
-RESPONSES = compute_response_per_cells(data)
+RESPONSES, shifted_angle = compute_response_per_cells(data)
+
+
+# %%
+shift_orientation_according_to_pref(157.5, 22.5, -22.5, 180)
 
 # %%
 fig, AX = pt.plt.subplots(1, 3, figsize=(6,1))
@@ -356,12 +373,12 @@ AX[1].set_yticks([0, 0.5, 1])
 AX[1].set_ylabel('n. $\Delta$F/F')
 AX[1].set_title('peak normalized')
 
-Nresp = len(RESPONSES)
-
-pt.pie([Nresp/Ntot, 1-Nresp/Ntot],
-       pie_labels=['%.1f%%' % (100.*Nresp/Ntot), '     %.1f%%' % (100.*(1-Nresp/Ntot))],
+pt.pie([len(RESPONSES)/data.nROIs, 1-len(RESPONSES)/data.nROIs],
+       pie_labels=['%.1f%%' % (100.*len(RESPONSES)/data.nROIs),
+                   '     %.1f%%' % (100.*(1-len(RESPONSES)/data.nROIs))],
        COLORS=[pt.plt.cm.tab10(2), pt.plt.cm.tab10(1)], ax=AX[2])
-AX[2].annotate('responsive ROIS :\nn=%i / %i   ' % (Nresp, Ntot), (0.5, 0), va='top', ha='center',
+AX[2].annotate('responsive ROIS :\nn=%i / %i   ' % (len(RESPONSES), data.nROIs),
+               (0.5, 0), va='top', ha='center',
                xycoords='axes fraction')
 #ge.save_on_desktop(fig, 'fig.png', dpi=300)
 
