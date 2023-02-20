@@ -1,19 +1,12 @@
 import sys, os, pathlib
 import numpy as np
 
-physion_folder = os.path.join(pathlib.Path(__file__).resolve().parent,
-                              'physion', 'src')
-sys.path.append(os.path.join(physion_folder)
-
-from physion.analysis.read_NWB import Data, scan_folder_for_NWBfiles
-
 stat_test_props = dict(interval_pre=[-1.5,0],
                        interval_post=[0.5,2],
                        test='ttest',
                        positive=True)
 
 response_significance_threshold = 0.01
-
 
 def selectivity_index(angles, resp):
     """

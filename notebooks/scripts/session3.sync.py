@@ -192,12 +192,31 @@ for i, protocols in enumerate(DATASET['protocols']):
         FILES.append(DATASET['files'][i])
 FILES = FILES[-1:] # limit to 1 for now !!
 
-# %%
-sys.path.append('..', '..', 'src')
-from src.analysis import selectivity_index, shift_orientation_according_to_pref
 
 # %%
-FILES
+def selectivity_index(angles, resp):
+    """
+    computes the selectivity index: (Pref-Orth)/(Pref+Orth)
+    clipped in [0,1]
+    """
+    imax = np.argmax(resp)
+    iop = np.argmin(((angles[imax]+90)%(180)-angles)**2)
+    if (resp[imax]>0):
+        return min([1,max([0,(resp[imax]-resp[iop])/(resp[imax]+resp[iop])])])
+    else:
+        return 0
+
+def shift_orientation_according_to_pref(angle, 
+                                        pref_angle=0, 
+                                        start_angle=-45, 
+                                        angle_range=360):
+    new_angle = (angle-pref_angle)%angle_range
+    if new_angle>=angle_range+start_angle:
+        return new_angle-angle_range
+    else:
+        return new_angle                                                                       
+
+
 
 # %%
 from physion.analysis.process_NWB import EpisodeData
@@ -212,14 +231,11 @@ stat_test_props = dict(interval_pre=[-1.5,0],
 
 response_significance_threshold = 0.01
 
-def cell_tuning_example_fig(filename,
+def cell_tuning_example_fig(data,
                             Nsamples = 10, # how many cells we show
                             seed=10):
     np.random.seed(seed)
     
-    data = Data(filename, verbose=False)
-    protocol_id = data.get_protocol_id(protocol_name='ff-gratings-8orientation-2contrasts-10repeats')
-
     EPISODES = EpisodeData(data,
                            quantities=['dFoF'],
                            protocol_id=protocol_id,
@@ -245,6 +261,7 @@ def cell_tuning_example_fig(filename,
                            xbar=1., xbarlabel='1s',
                            roiIndex=r,
                            color=['khaki', 'k'],
+                           with_stat_test=True,
                            AX=[AX[i]], no_set=False)
         AX[i][0].annotate('roi #%i  ' % (r+1), (0,0), ha='right', xycoords='axes fraction')
 
@@ -262,8 +279,8 @@ def cell_tuning_example_fig(filename,
                                                             **stat_test_props)
 
             angles.append(angle)
-            y.append(np.mean(stats.y-stats.x))    # means "post"
-            sy.append(np.std(stats.y-stats.x))    # std "post"
+            y.append(np.mean(stats.y-stats.x))    # means "post-pre"
+            sy.append(np.std(stats.y-stats.x))    # std "post-pre"
 
             if stats.significant(threshold=response_significance_threshold):
                 responsive = True
@@ -292,14 +309,13 @@ fig.savefig(os.path.join(os.path.expanduser('~'), 'Desktop', 'fig.png'), dpi=150
 # ## Population summary
 
 # %%
+
 stat_test_props = dict(interval_pre=[-1.5,0], 
                        interval_post=[0.5,2],
                        test='ttest',
                        positive=True)
 
-response_significance_threshold = 0.05
-
-fig, ax = pt.figure()
+response_significance_threshold = 0.01
 
 def compute_response_per_cells(data):
     
@@ -320,27 +336,27 @@ def compute_response_per_cells(data):
                                                           response_significance_threshold,
                                                   response_args=dict(quantity='dFoF', roiIndex=roi),
                                                   stat_test_props=stat_test_props)
-        
-        condition = np.ones(len(cell_resp['angle']), dtype=bool) # no condition
-        #condition = cell_resp['contrast']==1
+
+        #condition = np.ones(len(cell_resp['angle']), dtype=bool) # no condition
+        condition = cell_resp['contrast']==1 # RESTRICT TO FULL CONTRAST
         
         if np.sum(cell_resp['significant'][condition]):
             
             ipref = np.argmax(cell_resp['value'][condition])
             prefered_angle = cell_resp['angle'][condition][ipref]
 
-            print(prefered_angle)
             RESPONSES.append(np.zeros(len(shifted_angle)))
-            
-            for a, angle in enumerate(cell_resp['angle'][condition]):
-                print(a, angle)
+
+            for angle, value in zip(cell_resp['angle'][condition],
+                                    cell_resp['value'][condition]):
+
                 new_angle = shift_orientation_according_to_pref(angle, 
                                                                 pref_angle=prefered_angle, 
-                                                                start_angle=shifted_angle[0], 
-                                                                angle_range=shifted_angle[1]-shifted_angle[0])
-                iangle = np.argwhere(shifted_angle==new_angle)[0][0]
-                RESPONSES[-1][iangle] = cell_resp['value'][a] 
-            ax.plot(shifted_angle, RESPONSES[-1])
+                                                                start_angle=-22.5, 
+                                                                angle_range=180)
+                iangle = np.flatnonzero(shifted_angle==new_angle)[0]
+
+                RESPONSES[-1][iangle] = value
                 
     return RESPONSES, shifted_angle
 
@@ -349,38 +365,45 @@ RESPONSES, shifted_angle = compute_response_per_cells(data)
 
 
 # %%
-shift_orientation_according_to_pref(157.5, 22.5, -22.5, 180)
+def plot_tunning_summary(shifted_angle, RESPONSES):
+    """
+    """
+    fig, AX = pt.plt.subplots(1, 3, figsize=(6,1))
+    pt.plt.subplots_adjust(wspace=0.8)
+
+    # raw
+    pt.plot(shifted_angle, np.mean(RESPONSES, axis=0),
+            sy=np.std(RESPONSES, axis=0), ax=AX[0])
+    AX[0].set_ylabel('$\Delta$F/F')
+    AX[0].set_title('raw resp.')
+
+    for ax in AX[:2]:
+        ax.set_xlabel('angle ($^o$)')
+
+    # peak normalized
+    N_RESP = [resp/resp[1] for resp in RESPONSES]
+    pt.plot(shifted_angle, np.mean(N_RESP, axis=0),
+            sy=np.std(N_RESP, axis=0), ax=AX[1])
+
+    AX[1].set_yticks([0, 0.5, 1])
+    AX[1].set_ylabel('n. $\Delta$F/F')
+    AX[1].set_title('peak normalized')
+
+    pt.pie([len(RESPONSES)/data.nROIs, 1-len(RESPONSES)/data.nROIs],
+           pie_labels=['%.1f%%' % (100.*len(RESPONSES)/data.nROIs),
+                       '     %.1f%%' % (100.*(1-len(RESPONSES)/data.nROIs))],
+           COLORS=[pt.plt.cm.tab10(2), pt.plt.cm.tab10(1)], ax=AX[2])
+    AX[2].annotate('responsive ROIS :\nn=%i / %i   ' % (len(RESPONSES), data.nROIs),
+                   (0.5, 0), va='top', ha='center',
+                   xycoords='axes fraction')
+    #ge.save_on_desktop(fig, 'fig.png', dpi=300)
+    return fig, AX
+    
+fig, AX = plot_tunning_summary(shifted_angle, RESPONSES)
 
 # %%
-fig, AX = pt.plt.subplots(1, 3, figsize=(6,1))
-pt.plt.subplots_adjust(wspace=0.8)
-
-# raw
-pt.plot(shifted_angle, np.mean(RESPONSES, axis=0),
-        sy=np.std(RESPONSES, axis=0), ax=AX[0])
-AX[0].set_ylabel('$\Delta$F/F')
-AX[0].set_title('raw resp.')
-
-for ax in AX[:2]:
-    ax.set_xlabel('angle ($^o$)')
-
-# peak normalized
-N_RESP = [resp/resp[1] for resp in RESPONSES]
-pt.plot(shifted_angle, np.mean(N_RESP, axis=0),
-        sy=np.std(N_RESP, axis=0), ax=AX[1])
-
-AX[1].set_yticks([0, 0.5, 1])
-AX[1].set_ylabel('n. $\Delta$F/F')
-AX[1].set_title('peak normalized')
-
-pt.pie([len(RESPONSES)/data.nROIs, 1-len(RESPONSES)/data.nROIs],
-       pie_labels=['%.1f%%' % (100.*len(RESPONSES)/data.nROIs),
-                   '     %.1f%%' % (100.*(1-len(RESPONSES)/data.nROIs))],
-       COLORS=[pt.plt.cm.tab10(2), pt.plt.cm.tab10(1)], ax=AX[2])
-AX[2].annotate('responsive ROIS :\nn=%i / %i   ' % (len(RESPONSES), data.nROIs),
-               (0.5, 0), va='top', ha='center',
-               xycoords='axes fraction')
-#ge.save_on_desktop(fig, 'fig.png', dpi=300)
+RESPONSES
+shifted_angle[0]
 
 # %% [markdown]
 # ## Behavioral modulation of orientation tuning
