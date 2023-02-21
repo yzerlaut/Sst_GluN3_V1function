@@ -22,9 +22,9 @@
 #     ```
 #     python src/pdf_lum_with_tuning.py your-datafile-file.nwb
 #     ```
-# - For the surround suppression protocol (analysis included in physion)
+# - For the surround suppression protocol (analysis included in `physion`)
 #     ```
-#     python src/pdf_lum_with_tuning.py your-datafile-file.nwb
+#     python physion/src/physion/analysis/protocols/size-tuning.py your-datafile-file.nwb
 #     ```
 
 # %%

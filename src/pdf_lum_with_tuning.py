@@ -4,11 +4,7 @@ from scipy.stats import skew
 from PIL import Image
 
 sys.path.append('./src')
-from analysis import *
-
-physion_folder = os.path.join(pathlib.Path(__file__).resolve().parent,
-                              '..', 'physion', 'src')
-sys.path.append(os.path.join(physion_folder))
+from analysis import * # with physion import
 
 import physion.utils.plot_tools as pt
 
@@ -22,12 +18,6 @@ from physion.utils.plot_tools import pie
 
 tempfile.gettempdir()
 
-stat_test_props = dict(interval_pre=[-1.5,0.0],
-                       interval_post=[0.5,2.0],
-                       test='ttest',
-                       positive=True)
-
-response_significance_threshold = 0.01
 
 def generate_pdf(args,
                  subject='Mouse'):
@@ -114,7 +104,7 @@ def annotate_luminosity_and_get_summary(data, args, ax=None):
     if 'BlankFirst' in data.metadata['protocol']:
         tstarts = data.nwbfile.stimulus['time_start_realigned'].data[:3]
         tstops = data.nwbfile.stimulus['time_stop_realigned'].data[:3]
-        values = ['dark' ,'grey', 'black']
+        values = ['dark' ,'black', 'grey']
     elif 'BlankLast' in data.metadata['protocol']:
         tstarts = data.nwbfile.stimulus['time_start_realigned'].data[-3:]
         tstops = data.nwbfile.stimulus['time_stop_realigned'].data[-3:]
@@ -134,48 +124,6 @@ def annotate_luminosity_and_get_summary(data, args, ax=None):
                 
     return summary
 
-def compute_response_per_cells(data):
-    
-    RESPONSES = []
-
-    protocol_id = data.get_protocol_id(protocol_name='ff-gratings-8orientation-2contrasts-10repeats')
-
-    EPISODES = EpisodeData(data,
-                           quantities=['dFoF'],
-                           protocol_id=protocol_id,
-                           verbose=True)
-                               
-    shifted_angle = EPISODES.varied_parameters['angle']-EPISODES.varied_parameters['angle'][1]
-    
-    for roi in np.arange(data.nROIs)[:10]:
-
-        cell_resp = EPISODES.compute_summary_data(response_significance_threshold=\
-                                                          response_significance_threshold,
-                                                  response_args=dict(quantity='dFoF', roiIndex=roi),
-                                                  stat_test_props=stat_test_props)
-
-        #condition = np.ones(len(cell_resp['angle']), dtype=bool) # no condition
-        condition = cell_resp['contrast']==1 # RESTRICT TO FULL CONTRAST
-        
-        if np.sum(cell_resp['significant'][condition]):
-            
-            ipref = np.argmax(cell_resp['value'][condition])
-            prefered_angle = cell_resp['angle'][condition][ipref]
-
-            RESPONSES.append(np.zeros(len(shifted_angle)))
-
-            for angle, value in zip(cell_resp['angle'][condition],
-                                    cell_resp['value'][condition]):
-
-                new_angle = shift_orientation_according_to_pref(angle, 
-                                                                pref_angle=prefered_angle, 
-                                                                start_angle=-22.5, 
-                                                                angle_range=180)
-                iangle = np.flatnonzero(shifted_angle==new_angle)[0]
-
-                RESPONSES[-1][iangle] = value
-                
-    return RESPONSES, shifted_angle
 
 def cell_tuning_example_fig(data,
                             Nsamples = 15, # how many cells we show
@@ -211,6 +159,7 @@ def cell_tuning_example_fig(data,
                            roiIndex=r,
                            color=['khaki', 'k'],
                            with_stat_test=True,
+                           stat_test_props=stat_test_props,
                            AX=[AX[i]], no_set=False)
         AX[i][0].annotate('roi #%i  ' % (r+1), (0,0), ha='right', xycoords='axes fraction')
 
@@ -328,7 +277,7 @@ def generate_figs(args,
     fig.savefig(os.path.join(tempfile.tempdir,
         'tuning-examples-%i.png' % args.unique_run_ID), dpi=300)
 
-    RESPONSES, shifted_angle = compute_response_per_cells(data)
+    RESPONSES, shifted_angle = compute_tuning_response_per_cells(data)
 
     fig, AX = plot_tunning_summary(data, shifted_angle, RESPONSES)
     fig.savefig(os.path.join(tempfile.tempdir,

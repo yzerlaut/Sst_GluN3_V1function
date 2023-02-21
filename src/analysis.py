@@ -1,8 +1,14 @@
 import sys, os, pathlib
 import numpy as np
 
+physion_folder = os.path.join(pathlib.Path(__file__).resolve().parent,
+                              '..', 'physion', 'src')
+sys.path.append(os.path.join(physion_folder))
+from physion.analysis.process_NWB import EpisodeData
+
+
 stat_test_props = dict(interval_pre=[-1.5,0],
-                       interval_post=[0.5,2],
+                       interval_post=[1,2.5],
                        test='ttest',
                        positive=True)
 
@@ -29,3 +35,47 @@ def shift_orientation_according_to_pref(angle,
         return new_angle-angle_range
     else:
         return new_angle
+
+
+def compute_tuning_response_per_cells(data,
+                                      stat_test_props=stat_test_props):
+    
+    RESPONSES = []
+
+    protocol_id = data.get_protocol_id(protocol_name='ff-gratings-8orientation-2contrasts-10repeats')
+
+    EPISODES = EpisodeData(data,
+                           quantities=['dFoF'],
+                           protocol_id=protocol_id,
+                           verbose=True)
+                               
+    shifted_angle = EPISODES.varied_parameters['angle']-EPISODES.varied_parameters['angle'][1]
+    
+    for roi in np.arange(data.nROIs)[:10]:
+
+        cell_resp = EPISODES.compute_summary_data(response_significance_threshold=\
+                                                          response_significance_threshold,
+                                                  response_args=dict(quantity='dFoF', roiIndex=roi),
+                                                  stat_test_props=stat_test_props)
+
+        condition = cell_resp['contrast']==1 # RESTRICT TO FULL CONTRAST
+        
+        if np.sum(cell_resp['significant'][condition]):
+            
+            ipref = np.argmax(cell_resp['value'][condition])
+            prefered_angle = cell_resp['angle'][condition][ipref]
+
+            RESPONSES.append(np.zeros(len(shifted_angle)))
+
+            for angle, value in zip(cell_resp['angle'][condition],
+                                    cell_resp['value'][condition]):
+
+                new_angle = shift_orientation_according_to_pref(angle, 
+                                                                pref_angle=prefered_angle, 
+                                                                start_angle=-22.5, 
+                                                                angle_range=180)
+                iangle = np.flatnonzero(shifted_angle==new_angle)[0]
+
+                RESPONSES[-1][iangle] = value
+                
+    return RESPONSES, shifted_angle
