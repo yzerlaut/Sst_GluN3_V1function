@@ -277,7 +277,7 @@ def generate_figs(args,
     fig.savefig(os.path.join(tempfile.tempdir,
         'tuning-examples-%i.png' % args.unique_run_ID), dpi=300)
 
-    RESPONSES, shifted_angle = compute_tuning_response_per_cells(data)
+    RESPONSES, _, shifted_angle = compute_tuning_response_per_cells(data)
 
     fig, AX = plot_tunning_summary(data, shifted_angle, RESPONSES)
     fig.savefig(os.path.join(tempfile.tempdir,

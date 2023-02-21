@@ -38,7 +38,8 @@ def shift_orientation_according_to_pref(angle,
 
 
 def compute_tuning_response_per_cells(data,
-                                      stat_test_props=stat_test_props):
+                                      stat_test_props=stat_test_props,
+                                      verbose=True):
     
     RESPONSES = []
 
@@ -47,7 +48,7 @@ def compute_tuning_response_per_cells(data,
     EPISODES = EpisodeData(data,
                            quantities=['dFoF'],
                            protocol_id=protocol_id,
-                           verbose=True)
+                           verbose=verbose)
                                
     shifted_angle = EPISODES.varied_parameters['angle']-EPISODES.varied_parameters['angle'][1]
     
@@ -78,4 +79,4 @@ def compute_tuning_response_per_cells(data,
 
                 RESPONSES[-1][iangle] = value
                 
-    return RESPONSES, shifted_angle
+    return RESPONSES, len(RESPONSES)/data.nROIs, shifted_angle
