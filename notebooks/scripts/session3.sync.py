@@ -39,7 +39,7 @@ from physion.analysis.read_NWB import Data, scan_folder_for_NWBfiles
 
 
 # %%
-DATASET = scan_folder_for_NWBfiles('/home/yann.zerlaut/CURATED/SST-Glun3KO-January-2023/', 
+DATASET = scan_folder_for_NWBfiles('/home/yann.zerlaut/CURATED/SST-GluN3KO-January-2023/', 
                                    verbose=True)
 
 # %%

@@ -52,14 +52,13 @@ def compute_tuning_response_per_cells(data,
                                
     shifted_angle = EPISODES.varied_parameters['angle']-EPISODES.varied_parameters['angle'][1]
     
-    for roi in np.arange(data.nROIs)[:10]:
+    for roi in np.arange(data.nROIs):
 
-        cell_resp = EPISODES.compute_summary_data(response_significance_threshold=\
-                                                          response_significance_threshold,
-                                                  response_args=dict(quantity='dFoF', roiIndex=roi),
-                                                  stat_test_props=stat_test_props)
+        cell_resp = EPISODES.compute_summary_data(stat_test_props,
+                        response_significance_threshold=response_significance_threshold,
+                        response_args=dict(quantity='dFoF', roiIndex=roi))
 
-        condition = cell_resp['contrast']==1 # RESTRICT TO FULL CONTRAST
+        condition = (cell_resp['contrast']==1) # RESTRICT TO FULL CONTRAST
         
         if np.sum(cell_resp['significant'][condition]):
             

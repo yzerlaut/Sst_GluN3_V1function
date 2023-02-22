@@ -151,6 +151,7 @@ def cell_tuning_example_fig(data,
 
         # SHOW trial-average
         plot_trial_average(EPISODES,
+                           # condition=EPISODES.find_episode_cond(key='contrast' ,value=1),
                            column_key='angle',
                            color_key='contrast',
                            quantity='dFoF',
@@ -257,8 +258,13 @@ def generate_figs(args,
 
     # ## --- FULL RECORDING VIEW --- 
     args.raw_figsize=(7, 3.2)
+    if 'BlankLast' in data.metadata['protocol']:
+        tlims = (50, 150)
+    else:
+        tlims = (1200, 1300)
+       
     figs, axs = generate_raw_data_figs(data, args,
-                                      TLIMS = [(15, 65)],
+                                      TLIMS = [tlims],
                                       return_figs=True)
     figs[0].subplots_adjust(bottom=0.05, top=0.9, left=0.05, right=0.9)
 
@@ -277,7 +283,8 @@ def generate_figs(args,
     fig.savefig(os.path.join(tempfile.tempdir,
         'tuning-examples-%i.png' % args.unique_run_ID), dpi=300)
 
-    RESPONSES, _, shifted_angle = compute_tuning_response_per_cells(data)
+    RESPONSES, _, shifted_angle = compute_tuning_response_per_cells(data,
+                                                                    stat_test_props=stat_test_props)
 
     fig, AX = plot_tunning_summary(data, shifted_angle, RESPONSES)
     fig.savefig(os.path.join(tempfile.tempdir,
