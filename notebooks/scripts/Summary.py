@@ -19,11 +19,11 @@ import sys, os, pprint, pandas
 import numpy as np
 import matplotlib.pylab as plt
 
-sys.path.append('../../../physion/src')
+sys.path.append('../../src')
+from analysis import compute_tuning_response_per_cells
+sys.path.append('../../physion/src')
 from physion.analysis.read_NWB import Data, scan_folder_for_NWBfiles
 import physion.utils.plot_tools as pt
-sys.path.append('../../src')
-from analysis import * # with physion path
 
 # %% [markdown]
 # ## Orientation tuning
@@ -43,14 +43,22 @@ SUMMARY['NR1']['FILES'] = [\
              '/home/yann.zerlaut/CURATED/SST-GluN3KO-February-2023/2023_02_15-16-40-50.nwb',
              '/home/yann.zerlaut/CURATED/SST-GluN3KO-February-2023/2023_02_15-17-14-56.nwb',
              '/home/yann.zerlaut/CURATED/SST-GluN3KO-February-2023/2023_02_15-18-05-25.nwb',
-             '/home/yann.zerlaut/CURATED/SST-GluN3KO-February-2023/2023_02_15-18-52-59.nwb']
+             '/home/yann.zerlaut/CURATED/SST-GluN3KO-February-2023/2023_02_15-18-52-59.nwb',
+             '/home/yann.zerlaut/CURATED/SST-GluN3KO-February-2023/2023_02_17-13-48-50.nwb',
+             '/home/yann.zerlaut/CURATED/SST-GluN3KO-February-2023/2023_02_17-14-35-39.nwb',
+             '/home/yann.zerlaut/CURATED/SST-GluN3KO-February-2023/2023_02_17-18-47-20.nwb',
+             '/home/yann.zerlaut/CURATED/SST-GluN3KO-February-2023/2023_02_17-19-21-51.nwb']
 
 
 SUMMARY['WT']['FILES'] = [\
             '/home/yann.zerlaut/CURATED/SST-GluN3KO-February-2023/2023_02_15-13-30-47.nwb',
             '/home/yann.zerlaut/CURATED/SST-GluN3KO-February-2023/2023_02_15-14-05-01.nwb',
             '/home/yann.zerlaut/CURATED/SST-GluN3KO-February-2023/2023_02_15-15-10-04.nwb',
-            '/home/yann.zerlaut/CURATED/SST-GluN3KO-February-2023/2023_02_15-15-48-06.nwb']
+            '/home/yann.zerlaut/CURATED/SST-GluN3KO-February-2023/2023_02_15-15-48-06.nwb',
+            '/home/yann.zerlaut/CURATED/SST-GluN3KO-February-2023/2023_02_17-15-30-46.nwb',
+            '/home/yann.zerlaut/CURATED/SST-GluN3KO-February-2023/2023_02_17-16-15-09.nwb',
+            '/home/yann.zerlaut/CURATED/SST-GluN3KO-February-2023/2023_02_17-17-02-46.nwb',
+            '/home/yann.zerlaut/CURATED/SST-GluN3KO-February-2023/2023_02_17-17-39-12.nwb']
 
 for key in ['WT', 'GluN3', 'NR1']:
 
