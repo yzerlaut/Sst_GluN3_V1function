@@ -29,13 +29,6 @@ from analysis import * # with physion path
 # ## Orientation tuning
 
 # %%
-stat_test_props = dict(interval_pre=[-1.5,0],                                                                                                                  
-                       interval_post=[1,2.5],
-                       test='ttest',
-                       positive=True)
-                                                                                                                                                               
-response_significance_threshold = 0.01                                                                                                                         
-
 SUMMARY = {'WT':{}, 'GluN3':{}, 'NR1':{}}
 
 SUMMARY['GluN3']['FILES'] = [\

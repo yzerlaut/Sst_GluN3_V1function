@@ -52,7 +52,7 @@ def compute_tuning_response_per_cells(data,
                                
     shifted_angle = EPISODES.varied_parameters['angle']-EPISODES.varied_parameters['angle'][1]
     
-    for roi in np.arange(data.nROIs):
+    for roi in np.arange(data.vNrois):
 
         cell_resp = EPISODES.compute_summary_data(stat_test_props,
                         response_significance_threshold=response_significance_threshold,
@@ -78,4 +78,4 @@ def compute_tuning_response_per_cells(data,
 
                 RESPONSES[-1][iangle] = value
                 
-    return RESPONSES, len(RESPONSES)/data.nROIs, shifted_angle
+    return RESPONSES, len(RESPONSES)/data.vNrois, shifted_angle
