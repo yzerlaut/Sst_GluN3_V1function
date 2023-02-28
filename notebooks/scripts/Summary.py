@@ -19,10 +19,11 @@ import sys, os, pprint, pandas
 import numpy as np
 import matplotlib.pylab as plt
 
-sys.path.append('../../src')
-from analysis import * # with physion path
+sys.path.append('../../../physion/src')
 from physion.analysis.read_NWB import Data, scan_folder_for_NWBfiles
 import physion.utils.plot_tools as pt
+sys.path.append('../../src')
+from analysis import * # with physion path
 
 # %% [markdown]
 # ## Orientation tuning
@@ -69,5 +70,57 @@ for key in ['WT', 'GLUN3', 'NR1']:
                                                                                 verbose=False)
         SUMMARY[key]['RESPONSES'].append(responses)
         WT_FRAC_RESP.append(frac_resp)
+
+# %% [markdown]
+# ## Size tuning
+
+# %%
+DATASET = scan_folder_for_NWBfiles('/home/yann.zerlaut/CURATED/SST-GluN3KO-February-2023')
+
+SUMMARY = {'WT':{'FILES':[]}, 'GLUN3':{'FILES':[]}, 'NR1':{'FILES':[]}}
+
+for f, s, p in zip(DATASET['files'], DATASET['subjects'], DATASET['protocols']):
+    if ('size-tuning' in p[0]):
+        if 'GluN1' in s:
+            SUMMARY['NR1']['FILES'].append(f)
+        else:
+            SUMMARY['WT']['FILES'].append(f)
+
+SUMMARY
+
+# %%
+from physion.analysis.protocols.size_tuning import center_and_compute_size_tuning
+
+for key in ['WT', 'GLUN3', 'NR1']:
+
+    SUMMARY[key]['RESPONSES'] = []
+
+    for f in SUMMARY[key]['FILES']:
+        
+        data = Data(f, verbose=False)
+
+        radii, size_resps = center_and_compute_size_tuning(data, verbose=False)
+        
+        SUMMARY[key]['RESPONSES'].append(size_resps)
+        
+SUMMARY
+
+# %%
+fig, ax = pt.plt.subplots(1, figsize=(3,2))
+
+for i, key, color in zip(range(3), ['WT', 'GLUN3', 'NR1'], ['k', 'tab:blue', 'tab:green']):
+    
+    if len(SUMMARY[key]['RESPONSES'])>0:
+        
+        resp = [np.mean(r, axis=0) for r in SUMMARY[key]['RESPONSES']]
+        pt.plot(radii, np.mean(resp, axis=0), sy=np.std(resp, axis=0),
+                ax=ax, color=color)
+        
+        ax.annotate(i*'\n'+'%s, N=%i sessions' % (key, len(SUMMARY[key]['RESPONSES'])), (1,1),
+                    va='top', color=color, xycoords='axes fraction')
+
+ax.set_ylabel('$\delta$ $\Delta$F/F')                                                                      
+ax.set_xlabel('size ($^o$)')    
+
 
 # %%
