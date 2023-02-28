@@ -206,6 +206,9 @@ for i, key, color in zip(range(3), ['WT', 'GLUN3', 'NR1'], ['k', 'tab:blue', 'ta
     if len(SUMMARY[key]['RESPONSES'])>0:
         
         resp = [np.mean(r, axis=0) for r in SUMMARY[key]['RESPONSES']]
+        for r in SUMMARY[key]['RESPONSES']:
+            ax.plot(radii, np.mean(r, axis=0), lw=0.5, color=color)
+        
         pt.plot(radii, np.mean(resp, axis=0), sy=np.std(resp, axis=0),
                 ax=ax, color=color)
         
@@ -214,6 +217,8 @@ for i, key, color in zip(range(3), ['WT', 'GLUN3', 'NR1'], ['k', 'tab:blue', 'ta
 
 ax.set_ylabel('$\delta$ $\Delta$F/F')                                                                      
 ax.set_xlabel('size ($^o$)')    
+
+#fig.savefig(os.path.join(os.path.expanduser('~'), 'Desktop', 'final.svg'))
 
 
 # %%
