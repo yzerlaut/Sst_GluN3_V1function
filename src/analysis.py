@@ -39,26 +39,29 @@ def shift_orientation_according_to_pref(angle,
 
 def compute_tuning_response_per_cells(data,
                                       stat_test_props=stat_test_props,
+                                      contrast=1,
+                                      protocol_name='ff-gratings-8orientation-2contrasts-10repeats',
                                       verbose=True):
     
     RESPONSES = []
 
-    protocol_id = data.get_protocol_id(protocol_name='ff-gratings-8orientation-2contrasts-10repeats')
+    protocol_id = data.get_protocol_id(protocol_name=protocol_name)
 
     EPISODES = EpisodeData(data,
                            quantities=['dFoF'],
                            protocol_id=protocol_id,
                            verbose=verbose)
                                
-    shifted_angle = EPISODES.varied_parameters['angle']-EPISODES.varied_parameters['angle'][1]
+    shifted_angle = EPISODES.varied_parameters['angle']-\
+                            EPISODES.varied_parameters['angle'][1]
     
-    for roi in np.arange(data.nROIs):
+    for roi in np.arange(data.vNrois):
 
         cell_resp = EPISODES.compute_summary_data(stat_test_props,
                         response_significance_threshold=response_significance_threshold,
                         response_args=dict(quantity='dFoF', roiIndex=roi))
 
-        condition = (cell_resp['contrast']==1) # RESTRICT TO FULL CONTRAST
+        condition = (cell_resp['contrast']==contrast) # RESTRICT TO FULL CONTRAST
         
         if np.sum(cell_resp['significant'][condition]):
             
