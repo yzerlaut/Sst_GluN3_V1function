@@ -81,4 +81,4 @@ def compute_tuning_response_per_cells(data,
 
                 RESPONSES[-1][iangle] = value
                 
-    return RESPONSES, len(RESPONSES)/data.nROIs, shifted_angle
+    return RESPONSES, len(RESPONSES)/data.vNrois, shifted_angle

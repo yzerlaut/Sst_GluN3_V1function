@@ -118,7 +118,7 @@ def annotate_luminosity_and_get_summary(data, args, ax=None):
             ax.annotate(lum, (.5*(tstart+tstop), 0), va='top', ha='center')
             ax.fill_between([tstart, tstop], np.zeros(2), np.ones(2), lw=0, 
                             alpha=.2, color='k')
-        for roi in range(data.nROIs):
+        for roi in range(data.vNrois):
             for key, func in zip(['mean', 'std', 'skewness'], [np.mean, np.std, skew]):
                 summary[lum][key].append(func(data.dFoF[roi,t_cond]))
                 
@@ -146,8 +146,8 @@ def cell_tuning_example_fig(data,
         for ax in Ax:
             ax.axis('off')
 
-    for i, r in enumerate(np.random.choice(np.arange(data.nROIs), 
-                                           min([Nsamples, data.nROIs]), replace=False)):
+    for i, r in enumerate(np.random.choice(np.arange(data.vNrois), 
+                                           min([Nsamples, data.vNrois]), replace=False)):
 
         # SHOW trial-average
         plot_trial_average(EPISODES,
@@ -225,11 +225,11 @@ def plot_tunning_summary(data, shifted_angle, RESPONSES):
     AX[1].set_ylabel('n. $\Delta$F/F')
     AX[1].set_title('peak normalized')
 
-    pt.pie([len(RESPONSES)/data.nROIs, 1-len(RESPONSES)/data.nROIs],
-           pie_labels=['%.1f%%' % (100.*len(RESPONSES)/data.nROIs),
-                       '     %.1f%%' % (100.*(1-len(RESPONSES)/data.nROIs))],
+    pt.pie([len(RESPONSES)/data.vNrois, 1-len(RESPONSES)/data.vNrois],
+           pie_labels=['%.1f%%' % (100.*len(RESPONSES)/data.vNrois),
+                       '     %.1f%%' % (100.*(1-len(RESPONSES)/data.vNrois))],
            COLORS=[pt.plt.cm.tab10(2), pt.plt.cm.tab10(1)], ax=AX[2])
-    AX[2].annotate('responsive ROIS :\nn=%i / %i   ' % (len(RESPONSES), data.nROIs),
+    AX[2].annotate('responsive ROIS :\nn=%i / %i   ' % (len(RESPONSES), data.vNrois),
                    (0.5, 0), va='top', ha='center',
                    xycoords='axes fraction')
     #ge.save_on_desktop(fig, 'fig.png', dpi=300)
