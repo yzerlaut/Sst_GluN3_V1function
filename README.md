@@ -1,4 +1,4 @@
-# Studying the function of SST neuron's GluN3 receptor in mouse V1
+# Studying the function of Interneurons in mouse V1
 
 ** code **
 
@@ -6,7 +6,7 @@
 
 - clone the repository:
 ```
-git clone https://github.com/yzerlaut/SST_GluN3_V1function --recurse-submodules
+git clone https://github.com/yzerlaut/interneurons_V1function --recurse-submodules
 ```
 
 ## Usage
