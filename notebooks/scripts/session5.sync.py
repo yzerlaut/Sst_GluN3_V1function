@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.14.0
+#       jupytext_version: 1.14.5
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -403,3 +403,91 @@ def cell_tuning_example_fig(data,
 fig = cell_tuning_example_fig(FILES[-1])
 #fig.savefig(os.path.join(os.path.expanduser('~'), 'Desktop', 'fig.png'), dpi=150)
 
+
+# %% [markdown]
+# # Raw data
+
+# %%
+from physion.analysis.process_NWB import EpisodeData
+from physion.utils import plot_tools as pt
+from physion.dataviz.episodes.trial_average import plot_trial_average
+
+
+stat_test_props = dict(interval_pre=[-1.5,0], 
+                       interval_post=[0.5,2],
+                       test='ttest',
+                       positive=True)
+
+response_significance_threshold = 0.01
+
+def cell_tuning_example_fig(data,
+                            Nsamples = 10, # how many cells we show
+                            seed=10):
+    np.random.seed(seed)
+    
+    EPISODES = EpisodeData(data,
+                           quantities=['dFoF'],
+                           protocol_id=protocol_id,
+                           verbose=True)
+    
+    fig, AX = pt.plt.subplots(Nsamples, len(EPISODES.varied_parameters['angle']), 
+                          figsize=(7,7))
+    plt.subplots_adjust(right=0.75, left=0.1, top=0.97, bottom=0.05, wspace=0.1, hspace=0.8)
+    
+    for Ax in AX:
+        for ax in Ax:
+            ax.axis('off')
+
+    for i, r in enumerate(np.random.choice(np.arange(data.nROIs), 
+                                           min([Nsamples, data.nROIs]), replace=False)):
+
+        # SHOW trial-average
+        plot_trial_average(EPISODES,
+                           column_key='angle',
+                           color_key='contrast',
+                           quantity='dFoF',
+                           ybar=1., ybarlabel='1dF/F',
+                           xbar=1., xbarlabel='1s',
+                           roiIndex=r,
+                           color=['khaki', 'k'],
+                           with_stat_test=True,
+                           AX=[AX[i]], no_set=False)
+        AX[i][0].annotate('roi #%i  ' % (r+1), (0,0), ha='right', xycoords='axes fraction')
+
+        # SHOW summary angle dependence
+        inset = pt.inset(AX[i][-1], (2.2, 0.2, 1.2, 0.8))
+
+        angles, y, sy, responsive_angles = [], [], [], []
+        responsive = False
+
+        for a, angle in enumerate(EPISODES.varied_parameters['angle']):
+
+            stats = EPISODES.stat_test_for_evoked_responses(episode_cond=\
+                                            EPISODES.find_episode_cond(['angle', 'contrast'], [a,1]),
+                                                            response_args=dict(quantity='dFoF', roiIndex=r),
+                                                            **stat_test_props)
+
+            angles.append(angle)
+            y.append(np.mean(stats.y-stats.x))    # means "post-pre"
+            sy.append(np.std(stats.y-stats.x))    # std "post-pre"
+
+            if stats.significant(threshold=response_significance_threshold):
+                responsive = True
+                responsive_angles.append(angle)
+
+        pt.plot(angles, np.array(y), sy=np.array(sy), ax=inset)
+        inset.plot(angles, 0*np.array(angles), 'k:', lw=0.5)
+        inset.set_ylabel('$\delta$dF/F     ')
+        if i==(Nsamples-1):
+            inset.set_xlabel('angle ($^{o}$)')
+
+        SI = selectivity_index(angles, y)
+        inset.annotate('SI=%.2f ' % SI, (0, 1), ha='right', weight='bold', fontsize=8,
+                       color=('k' if responsive else 'lightgray'), xycoords='axes fraction')
+        inset.annotate(('responsive' if responsive else 'unresponsive'), (1, 1), ha='right',
+                        weight='bold', fontsize=6, color=(plt.cm.tab10(2) if responsive else plt.cm.tab10(3)),
+                        xycoords='axes fraction')
+        
+    return fig
+
+fig = cell_tuning_example_fig(FILES[-1])

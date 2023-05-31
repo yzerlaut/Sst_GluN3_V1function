@@ -26,9 +26,9 @@ def selectivity_index(angles, resp):
     else:
         return 0
 
-def shift_orientation_according_to_pref(angle, 
-                                        pref_angle=0, 
-                                        start_angle=-45, 
+def shift_orientation_according_to_pref(angle,
+                                        pref_angle=0,
+                                        start_angle=-45,
                                         angle_range=360):
     new_angle = (angle-pref_angle)%angle_range
     if new_angle>=angle_range+start_angle:
@@ -39,10 +39,11 @@ def shift_orientation_according_to_pref(angle,
 
 def compute_tuning_response_per_cells(data,
                                       stat_test_props=stat_test_props,
+                                      response_significance_threshold = response_significance_threshold,
                                       contrast=1,
                                       protocol_name='ff-gratings-8orientation-2contrasts-10repeats',
                                       verbose=True):
-    
+
     RESPONSES = []
 
     protocol_id = data.get_protocol_id(protocol_name=protocol_name)
@@ -51,20 +52,21 @@ def compute_tuning_response_per_cells(data,
                            quantities=['dFoF'],
                            protocol_id=protocol_id,
                            verbose=verbose)
-                               
+
     shifted_angle = EPISODES.varied_parameters['angle']-\
                             EPISODES.varied_parameters['angle'][1]
-    
+
     for roi in np.arange(data.vNrois):
 
         cell_resp = EPISODES.compute_summary_data(stat_test_props,
                         response_significance_threshold=response_significance_threshold,
                         response_args=dict(quantity='dFoF', roiIndex=roi))
 
-        condition = (cell_resp['contrast']==contrast) # RESTRICT TO FULL CONTRAST
-        
+        condition = (cell_resp['contrast']==contrast)
+
+        # if significant in at least one orientation
         if np.sum(cell_resp['significant'][condition]):
-            
+
             ipref = np.argmax(cell_resp['value'][condition])
             prefered_angle = cell_resp['angle'][condition][ipref]
 
@@ -73,12 +75,12 @@ def compute_tuning_response_per_cells(data,
             for angle, value in zip(cell_resp['angle'][condition],
                                     cell_resp['value'][condition]):
 
-                new_angle = shift_orientation_according_to_pref(angle, 
-                                                                pref_angle=prefered_angle, 
-                                                                start_angle=-22.5, 
+                new_angle = shift_orientation_according_to_pref(angle,
+                                                                pref_angle=prefered_angle,
+                                                                start_angle=-22.5,
                                                                 angle_range=180)
                 iangle = np.flatnonzero(shifted_angle==new_angle)[0]
 
                 RESPONSES[-1][iangle] = value
-                
+
     return RESPONSES, len(RESPONSES)/data.vNrois, shifted_angle
