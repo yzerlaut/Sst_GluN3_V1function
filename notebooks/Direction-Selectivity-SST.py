@@ -65,7 +65,7 @@ for i, protocols in enumerate(DATASET['protocols']):
         else:
             SUMMARY['WT']['FILES'].append(DATASET['files'][i])
             SUMMARY['WT']['subjects'].append(DATASET['subjects'][i])
-            
+
 
 # %%
 # -------------------------------------------------- #
