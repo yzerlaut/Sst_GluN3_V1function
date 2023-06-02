@@ -66,23 +66,22 @@ from physion.analysis.protocols.size_tuning import center_and_compute_size_tunin
 
 for key in ['WT', 'GluN1']:
 
-    SUMMARY[key]['RESPONSES'] = []
-    SUMMARY[key]['CENTERED_ROIS'] = []
-    SUMMARY[key]['PREF_ANGLES'] = []
+    for k in ['RESPONSES', 'CENTERED_ROIS', 'PREF_ANGLES']:
+        SUMMARY[key][k] = [] 
 
     for f in SUMMARY[key]['FILES']:
         
         print('analyzing "%s" [...] ' % f)
         data = Data(f, verbose=False)
 
-        radii, size_resps, rois, prefered_angles = center_and_compute_size_tuning(data, 
-                                                                                  with_rois_and_angles=True,
-                                                                                  verbose=False)
+        radii, size_resps, rois, pref_angles = center_and_compute_size_tuning(data, 
+                                                                              with_rois_and_angles=True,
+                                                                              verbose=False)
         
         if len(size_resps)>0:
-            SUMMARY[key]['RESPONSES'].append(size_resps)
-            SUMMARY[key]['CENTERED_ROIS'].append(rois)
-            SUMMARY[key]['PREF_ANGLES'].append(prefered_angles)
+        for k, q in zip(['RESPONSES', 'CENTERED_ROIS', 'PREF_ANGLES'],
+                        [size_resps, rois, pref_angles]):
+            SUMMARY[key][k].append(q)
         
         if len(radii)>0:
             SUMMARY['radii'] = radii
