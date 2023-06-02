@@ -73,15 +73,83 @@ for key in ['WT', 'GluN1']:
         
         print('analyzing "%s" [...] ' % f)
         data = Data(f, verbose=False)
-
+        data.build_dFoF()
+        print('-->', data.vNrois)
         radii, size_resps, rois, pref_angles = center_and_compute_size_tuning(data, 
                                                                               with_rois_and_angles=True,
                                                                               verbose=False)
         
         if len(size_resps)>0:
-        for k, q in zip(['RESPONSES', 'CENTERED_ROIS', 'PREF_ANGLES'],
-                        [size_resps, rois, pref_angles]):
-            SUMMARY[key][k].append(q)
+            for k, q in zip(['RESPONSES', 'CENTERED_ROIS', 'PREF_ANGLES'],
+                            [size_resps, rois, pref_angles]):
+                SUMMARY[key][k].append(q)
+        
+        if len(radii)>0:
+            SUMMARY['radii'] = radii
+
+# %%
+fig, AX = pt.plt.subplots(1, 3, figsize=(7,1.5))
+AX[0].annotate('average\nover\nsessions', (-0.8, 0.5), va='center', ha='center', xycoords='axes fraction')
+plt.subplots_adjust(wspace=0.5)
+
+center_index = 2
+
+for i, key, color in zip(range(3), ['WT', 'GluN1'], ['k', 'tab:blue']):
+    
+    if (len(SUMMARY[key]['RESPONSES'])>0) and (len(SUMMARY[key]['RESPONSES'][0])>0):
+        
+        resp = np.array([np.mean(r, axis=0) for r in SUMMARY[key]['RESPONSES']])
+        
+        AX[0].plot(SUMMARY['radii'][1:], np.mean(resp, axis=0)[1:], 'o', ms=2, color=color)
+        pt.plot(SUMMARY['radii'], np.mean(resp, axis=0), sy=np.std(resp, axis=0),
+                ax=AX[0], color=color)
+        
+        center_norm_resp = np.array([r/rn for r, rn in zip(resp, resp[:,center_index])])
+        pt.plot(SUMMARY['radii'], np.mean(center_norm_resp, axis=0), sy=np.std(center_norm_resp, axis=0),
+                ax=AX[1], color=color)
+
+        ff_norm_resp = np.array([r/rn for r, rn in zip(resp, resp[:,-1])])
+        pt.plot(SUMMARY['radii'], np.mean(ff_norm_resp, axis=0), sy=np.std(ff_norm_resp, axis=0),
+                ax=AX[2], color=color)
+        
+    AX[-1].annotate(i*'\n'+'%s, N=%i sessions' % (key, len(resp)), (1,1),
+                    va='top', color=color, xycoords='axes fraction')
+
+AX[1].plot([SUMMARY['radii'][center_index], SUMMARY['radii'][center_index], 0],
+           [0,1,1], 'k:', lw=0.5)
+AX[2].plot([SUMMARY['radii'][-1], SUMMARY['radii'][-1], 0], [0,1,1], 'k:', lw=0.5)
+
+for ax, ylabel in zip(AX,
+                     ['$\delta$ $\Delta$F/F', 'center norm. $\delta$ $\Delta$F/F', 'F.F. norm. $\delta$ $\Delta$F/F']):
+    pt.set_plot(ax, xlabel='size ($^o$)', ylabel=ylabel)    
+
+#fig.savefig(os.path.join(os.path.expanduser('~'), 'Desktop', 'final.svg'))
+
+# %%
+from physion.analysis.protocols.size_tuning import center_and_compute_size_tuning
+
+for key in ['WT', 'GluN1']:
+
+    for k in ['RESPONSES', 'CENTERED_ROIS', 'PREF_ANGLES']:
+        SUMMARY[key][k] = [] 
+
+    for f in SUMMARY[key]['FILES']:
+        
+        print('analyzing "%s" [...] ' % f)
+        data = Data(f, verbose=False)
+        data.build_dFoF(method_for_F0='sliding_percentile',
+                        percentile=10,
+                        sliding_window=180)
+        print('-->', data.vNrois)
+        
+        radii, size_resps, rois, pref_angles = center_and_compute_size_tuning(data, 
+                                                                              with_rois_and_angles=True,
+                                                                              verbose=False)
+        
+        if len(size_resps)>0:
+            for k, q in zip(['RESPONSES', 'CENTERED_ROIS', 'PREF_ANGLES'],
+                            [size_resps, rois, pref_angles]):
+                SUMMARY[key][k].append(q)
         
         if len(radii)>0:
             SUMMARY['radii'] = radii
