@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.14.5
+#       jupytext_version: 1.14.0
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -68,7 +68,7 @@ for key in ['WT', 'GluN1']:
 
     SUMMARY[key]['RESPONSES'] = []
     SUMMARY[key]['CENTERED_ROIS'] = []
-    SUMMARY[key]['PREF_ANGLES'].append(prefered_angles)
+    SUMMARY[key]['PREF_ANGLES'] = []
 
     for f in SUMMARY[key]['FILES']:
         
