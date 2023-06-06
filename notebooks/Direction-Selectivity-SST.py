@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.14.5
+#       jupytext_version: 1.14.0
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -35,36 +35,45 @@ warnings.filterwarnings("ignore") # disable the UserWarning from pynwb (arrays a
 DATASET = scan_folder_for_NWBfiles(folder,
                                    verbose=False)
 
+
 # %%
 # -------------------------------------------------- #
 # ----    Pick the session datafiles and sort ------ #
 # ----      them according to genotype ------------- #
 # -------------------------------------------------- #
+# -------------------------------------------------- #
+# ----    Pick the session datafiles and sort ------ #
+# ----      them according to genotype ------------- #
+# -------------------------------------------------- #
 
-SUMMARY = {'WT':{'FILES':[], 'subjects':[]}, 
-           'GluN1':{'FILES':[], 'subjects':[]}, 
-           'GluN3':{'FILES':[], 'subjects':[]},
-           # add a summary for half contrast
-           'WT_c=0.5':{'FILES':[]},
-           'GluN1_c=0.5':{'FILES':[]},
-           'GluN3_c=0.5':{'FILES':[]}}
+def init_summary(DATASET):
 
-for i, protocols in enumerate(DATASET['protocols']):
-    
-    # select the sessions with different 
-    if ('ff-gratings-8orientation-2contrasts-15repeats' in protocols) or\
-        ('ff-gratings-8orientation-2contrasts-10repeats' in protocols):
-        
-        # sort the sessions according to the mouse genotype
-        if ('NR1' in DATASET['subjects'][i]) or ('GluN1' in DATASET['subjects'][i]):
-            SUMMARY['GluN1']['FILES'].append(DATASET['files'][i])
-            SUMMARY['GluN1']['subjects'].append(DATASET['subjects'][i])
-        elif 'GluN3' in DATASET['subjects'][i]:
-            SUMMARY['GluN3']['FILES'].append(DATASET['files'][i])
-            SUMMARY['GluN3']['subjects'].append(DATASET['subjects'][i])
-        else:
-            SUMMARY['WT']['FILES'].append(DATASET['files'][i])
-            SUMMARY['WT']['subjects'].append(DATASET['subjects'][i])
+    SUMMARY = {'WT':{'FILES':[], 'subjects':[]}, 
+               'GluN1':{'FILES':[], 'subjects':[]}, 
+               'GluN3':{'FILES':[], 'subjects':[]},
+               # add a summary for half contrast
+               'WT_c=0.5':{'FILES':[]},
+               'GluN1_c=0.5':{'FILES':[]},
+               'GluN3_c=0.5':{'FILES':[]}}
+
+    for i, protocols in enumerate(DATASET['protocols']):
+
+        # select the sessions with different 
+        if ('ff-gratings-8orientation-2contrasts-15repeats' in protocols) or\
+            ('ff-gratings-8orientation-2contrasts-10repeats' in protocols):
+
+            # sort the sessions according to the mouse genotype
+            if ('NR1' in DATASET['subjects'][i]) or ('GluN1' in DATASET['subjects'][i]):
+                SUMMARY['GluN1']['FILES'].append(DATASET['files'][i])
+                SUMMARY['GluN1']['subjects'].append(DATASET['subjects'][i])
+            elif ('NR3' in DATASET['subjects'][i]) or ('GluN3' in DATASET['subjects'][i]):
+                SUMMARY['GluN3']['FILES'].append(DATASET['files'][i])
+                SUMMARY['GluN3']['subjects'].append(DATASET['subjects'][i])
+            else:
+                SUMMARY['WT']['FILES'].append(DATASET['files'][i])
+                SUMMARY['WT']['subjects'].append(DATASET['subjects'][i])
+                
+    return SUMMARY
 
 
 # %%
@@ -85,31 +94,72 @@ stat_test_props = dict(interval_pre=[-1.,0],
                        test='ttest',                                            
                        positive=True) 
     
-def compute_summary_responses(stat_test_props=dict(interval_pre=[-1.,0],                                   
+def compute_summary_responses(DATASET,
+                              quantity='dFoF',
+                              roi_to_neuropil_fluo_inclusion_factor=1.2,
+                              neuropil_correction_factor = 0.8,
+                              method_for_F0 = 'sliding_percentile',
+                              percentile=5., # percent
+                              sliding_window = 180.0, # seconds
+                              Nmax=999, # max datafiles (for debugging)
+                              stat_test_props=dict(interval_pre=[-1.,0],                                   
                                                    interval_post=[1.,2.],                                   
                                                    test='anova',                                            
                                                    positive=True),
-                              response_significance_threshold=5e-2):
+                              response_significance_threshold=5e-2,
+                              verbose=True):
+    
+    SUMMARY = init_summary(DATASET)
+    
+    SUMMARY['quantity'] = quantity
+    SUMMARY['quantity_args'] = dict(roi_to_neuropil_fluo_inclusion_factor=\
+                                        roi_to_neuropil_fluo_inclusion_factor,
+                                    method_for_F0=method_for_F0,
+                                    percentile=percentile,
+                                    sliding_window=sliding_window,
+                                    neuropil_correction_factor=neuropil_correction_factor)
     
     for key in ['WT', 'GluN1', 'GluN3']:
 
         SUMMARY[key]['RESPONSES'], SUMMARY[key]['OSI'], SUMMARY[key]['FRAC_RESP'] = [], [], []
         SUMMARY[key+'_c=0.5']['RESPONSES'], SUMMARY[key+'_c=0.5']['OSI'], SUMMARY[key+'_c=0.5']['FRAC_RESP'] = [], [], []
 
-        for f in SUMMARY[key]['FILES']:
+        for f in SUMMARY[key]['FILES'][:Nmax]:
 
             data = Data(f, verbose=False)
+            
+            print('analyzing "%s" [...] ' % f)
+            data = Data(f, verbose=False)
+
+            if quantity=='dFoF':
+                data.build_dFoF(roi_to_neuropil_fluo_inclusion_factor=\
+                                        roi_to_neuropil_fluo_inclusion_factor,
+                                method_for_F0=method_for_F0,
+                                percentile=percentile,
+                                sliding_window=sliding_window,
+                                neuropil_correction_factor=neuropil_correction_factor,
+                                verbose=False)
+                
+            elif quantity=='rawFluo':
+                data.build_rawFluo(verbose=verbose)
+            elif quantity=='neuropil':
+                data.build_neuropil(verbose=verbose)            
+            else:
+                print('quantity not recognized !!')
+            
             protocol = 'ff-gratings-8orientation-2contrasts-15repeats' if\
                         ('ff-gratings-8orientation-2contrasts-15repeats' in data.protocols) else\
                         'ff-gratings-8orientation-2contrasts-10repeats'
 
             # at full contrast
             responses, frac_resp, shifted_angle = compute_tuning_response_per_cells(data,
+                                                                                    imaging_quantity=quantity,
                                                                                     contrast=1,
                                                                                     protocol_name=protocol,
                                                                                     stat_test_props=stat_test_props,
                                                                                     response_significance_threshold=response_significance_threshold,
                                                                                     verbose=False)
+            
             SUMMARY[key]['RESPONSES'].append(responses)
             SUMMARY[key]['OSI'].append([orientation_selectivity_index(r[1], r[5]) for r in responses])
             SUMMARY[key]['FRAC_RESP'].append(frac_resp)
@@ -123,6 +173,7 @@ def compute_summary_responses(stat_test_props=dict(interval_pre=[-1.,0],
                                                                                         stat_test_props=stat_test_props,
                                                                                         response_significance_threshold=response_significance_threshold,
                                                                                         verbose=False)
+                
                 SUMMARY[key+'_c=0.5']['RESPONSES'].append(responses)
                 SUMMARY[key+'_c=0.5']['OSI'].append([orientation_selectivity_index(r[1], r[5]) for r in responses])
                 SUMMARY[key+'_c=0.5']['FRAC_RESP'].append(frac_resp)
@@ -133,7 +184,27 @@ def compute_summary_responses(stat_test_props=dict(interval_pre=[-1.,0],
 
 
 # %%
-SUMMARY = compute_summary_responses()
+SUMMARY = compute_summary_responses(DATASET, quantity='rawFluo', Nmax=2) # tex: max 2 !
+
+# %%
+for quantity in ['rawFluo', 'neuropil', 'dFoF']:
+    SUMMARY = compute_summary_responses(DATASET, quantity=quantity, verbose=False)
+    np.save('data/%s-ff-gratings.npy' % quantity, SUMMARY)
+    
+for neuropil_correction_factor in [0.7, 0.8, 0.9, 1.]:
+    # rawFluo
+    SUMMARY = compute_summary_responses(DATASET, quantity='dFoF', 
+                                   neuropil_correction_factor=neuropil_correction_factor,
+                                   verbose=False)
+    np.save('data/factor-neuropil-%.1f-ff-gratings.npy' % neuropil_correction_factor, SUMMARY)
+    
+for roi_to_neuropil_fluo_inclusion_factor in [1.1, 1.15, 1.2, 1.25, 1.3]:
+    # rawFluo
+    SUMMARY = compute_summary_responses(DATASET, 
+                                   quantity='dFoF', 
+                                   roi_to_neuropil_fluo_inclusion_factor=roi_to_neuropil_fluo_inclusion_factor,
+                                   verbose=False)
+    np.save('data/inclusion-factor-neuropil-%.1f-ff-gratings.npy' % roi_to_neuropil_fluo_inclusion_factor, SUMMARY)
 
 
 # %%
@@ -201,6 +272,7 @@ for key in ['WT', 'GluN1']:
 
 # %%
 def generate_comparison_figs(SUMMARY, case1, case2,
+                             average_by='sessions',
                              color1='k', color2='tab:blue'):
     
     fig1, AX1 = plt.subplots(1, 4, figsize=(6, 1))
@@ -280,9 +352,9 @@ def generate_comparison_figs(SUMMARY, case1, case2,
                 xticks_labels=['%.0f'%s if (i%2==1) else '' for i,s in enumerate(SUMMARY['shifted_angle'])])
             
         for ax in [AX[0], AX[2]]:
-            ax.set_ylabel('evoked $\Delta$F/F')
+            ax.set_ylabel('$\delta$ %s' % SUMMARY['quantity'].replace('dFoF', '$\Delta$F/F'))
         for ax in [AX[1], AX[3]]:
-            ax.set_ylabel('norm. $\Delta$F/F')
+            ax.set_ylabel('norm. $\delta$ %s' % SUMMARY['quantity'].replace('dFoF', '$\Delta$F/F'))
         for ax in AX[:2]:
             ax.set_title('mean$\pm$s.e.m.', fontsize=6)
         for ax in AX[2:]:
@@ -303,8 +375,21 @@ def generate_comparison_figs(SUMMARY, case1, case2,
 
     return fig1, fig2, fig3
 
-FIGS = generate_comparison_figs(SUMMARY, 'WT', 'GluN1',
+for quantity in ['rawFluo', 'neuropil', 'dFoF']:
+    SUMMARY = np.load('data/%s-ff-gratings.npy' % quantity, allow_pickle=True).item()
+    FIGS = generate_comparison_figs(SUMMARY, 'WT', 'GluN1',
                                 color1='k', color2='tab:blue')
+
+# %%
+for neuropil_correction_factor in [0.7, 0.8, 0.9, 1.]:
+    try:
+        SUMMARY = np.load('data/factor-neuropil-%.1f-ff-gratings.npy' % neuropil_correction_factor,
+                          allow_pickle=True).item()
+        FIGS = generate_comparison_figs(SUMMARY, 'WT', 'GluN1',
+                                    color1='k', color2='tab:blue')    
+        FIGS[0].suptitle('Neuropil-factor for substraction: %.1f' % neuropil_correction_factor)
+    except BaseException as be:
+        pass
 
 # %%
 FIGS = generate_comparison_figs(SUMMARY, 'WT', 'WT_c=0.5',

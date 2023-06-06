@@ -72,7 +72,8 @@ from physion.analysis.protocols.size_tuning import center_and_compute_size_tunin
 
 def run_dataset_analysis(DATASET,
                          quantity='dFoF',
-                         neuropil_correction_factor = 1.,
+                         roi_to_neuropil_fluo_inclusion_factor=1.2,
+                         neuropil_correction_factor = 0.8,
                          method_for_F0 = 'sliding_percentile',
                          percentile=5., # percent
                          sliding_window = 180.0, # seconds
@@ -82,7 +83,9 @@ def run_dataset_analysis(DATASET,
     SUMMARY = init_summary(DATASET)
     
     SUMMARY['quantity'] = quantity
-    SUMMARY['quantity_args'] = dict(method_for_F0=method_for_F0,
+    SUMMARY['quantity_args'] = dict(roi_to_neuropil_fluo_inclusion_factor=\
+                                        roi_to_neuropil_fluo_inclusion_factor,
+                                    method_for_F0=method_for_F0,
                                     percentile=percentile,
                                     sliding_window=sliding_window,
                                     neuropil_correction_factor=neuropil_correction_factor)
@@ -98,7 +101,9 @@ def run_dataset_analysis(DATASET,
             data = Data(f, verbose=False)
 
             if quantity=='dFoF':
-                data.build_dFoF(method_for_F0=method_for_F0,
+                data.build_dFoF(roi_to_neuropil_fluo_inclusion_factor=\
+                                        roi_to_neuropil_fluo_inclusion_factor,
+                                method_for_F0=method_for_F0,
                                 percentile=percentile,
                                 sliding_window=sliding_window,
                                 neuropil_correction_factor=neuropil_correction_factor,
@@ -125,10 +130,26 @@ def run_dataset_analysis(DATASET,
                 
     return SUMMARY
 
-SUMMARY = run_dataset_analysis(DATASET, quantity='neuropil', Nmax=2, verbose=False)
 
 # %%
-SUMMARY
+for quantity in ['rawFluo', 'neuropil', 'dFoF']:
+    SUMMARY = run_dataset_analysis(DATASET, quantity=quantity, verbose=False)
+    np.save('data/%s-summary.npy' % quantity, SUMMARY)
+    
+for neuropil_correction_factor in [0.7, 0.8, 0.9, 1.]:
+    # rawFluo
+    SUMMARY = run_dataset_analysis(DATASET, quantity='dFoF', 
+                                   neuropil_correction_factor=neuropil_correction_factor,
+                                   verbose=False)
+    np.save('data/factor-neuropil-%.1f-summary.npy' % neuropil_correction_factor, SUMMARY)
+    
+for roi_to_neuropil_fluo_inclusion_factor in [1.1, 1.15, 1.2, 1.25, 1.3]:
+    # rawFluo
+    SUMMARY = run_dataset_analysis(DATASET, 
+                                   quantity='dFoF', 
+                                   roi_to_neuropil_fluo_inclusion_factor=roi_to_neuropil_fluo_inclusion_factor,
+                                   verbose=False)
+    np.save('data/inclusion-factor-neuropil-%.1f-summary.npy' % roi_to_neuropil_fluo_inclusion_factor, SUMMARY)
 
 
 # %%
@@ -179,7 +200,16 @@ fig = plot_summary(SUMMARY)
 #fig.savefig(os.path.join(os.path.expanduser('~'), 'Desktop', 'final.svg'))
 
 # %%
-fig = plot_summary(SUMMARY)
+for quantity in ['rawFluo', 'neuropil', 'dFoF']:
+    SUMMARY = np.load('data/%s-summary.npy' % quantity, allow_pickle=True).item()
+    fig = plot_summary(SUMMARY)
+
+# %%
+for neuropil_correction_factor in [0.7, 0.8, 0.9, 1.]:
+    SUMMARY = np.load('data/factor-neuropil-%.1f-summary.npy' % neuropil_correction_factor,
+                      allow_pickle=True).item()
+    fig = plot_summary(SUMMARY)
+    fig.suptitle('Neuropil-factor for substraction: %.1f' % neuropil_correction_factor)
 
 # %%
 from physion.analysis.protocols.size_tuning import center_and_compute_size_tuning

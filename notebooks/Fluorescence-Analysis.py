@@ -37,11 +37,19 @@ data = Data(DATASET['files'][2])
 data.build_rawFluo()
 data.build_neuropil()
 
-data.build_dFoF(neuropil_correction_factor=0.8,
+data.build_dFoF(roi_to_neuropil_fluo_inclusion_factor=1.2,
+                neuropil_correction_factor=0.8,
                 sliding_window=180,
                 method_for_F0='sliding_percentile',
                 percentile=10,
-                with_correctedFluo_and_F0=True)
+                with_correctedFluo_and_F0=True,
+                verbose=False)
+
+# %%
+frac = len(data.valid_roiIndices)/data.iscell.sum()
+X = [frac, 1-frac]
+pt.pie(X,COLORS=['tab:green', 'tab:grey'],
+       ext_labels=['%s\n%.1f%%'%(label, 100.*x) for label, x in zip(['kept', 'discarded'], X)])
 
 # %%
 Nrois = 10
@@ -60,6 +68,7 @@ for i, roi in enumerate(np.random.choice(np.arange(data.vNrois), Nrois, replace=
 for ax in pt.flatten(AX):
     pt.set_plot(ax, xlim=[0, data.t_rawFluo[-1]], xticks=[])
     
+pt.draw_bar_scales(AX[0][0], Xbar=60, Xbar_label='1min', Ybar=1e-21)
 AX[0][0].legend(frameon=False, loc=(0.8,1), fontsize=6)
 AX[0][1].legend(frameon=False, loc=(0.8,1), fontsize=6)
 
