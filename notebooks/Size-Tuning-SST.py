@@ -29,6 +29,7 @@ import plot_tools as pt
 
 folder = os.path.join(os.path.expanduser('~'), 'CURATED', 'SST-WT-NR1-GluN3-2023')
 
+# %%
 import warnings
 warnings.filterwarnings("ignore") # disable the UserWarning from pynwb (arrays are not well oriented)
 
@@ -155,48 +156,61 @@ for roi_to_neuropil_fluo_inclusion_factor in [1.1, 1.15, 1.2, 1.25, 1.3]:
 # %%
 
 def plot_summary(SUMMARY,
-                 average_by='sessions'):
+                 average_by='sessions',
+                 ms=2):
     
-    fig, AX = pt.plt.subplots(1, 3, figsize=(7,1.5))
+    fig, AX = pt.plt.subplots(1, 2, figsize=(3.5,1.))
+    #fig, AX = pt.plt.subplots(1, 3, figsize=(7,1.5))
     AX[0].annotate('average\nover\n%s' % average_by,
                    (-0.8, 0.5), va='center', ha='center', xycoords='axes fraction')
-    plt.subplots_adjust(wspace=0.5)
+    plt.subplots_adjust(wspace=0.7)
 
     center_index = 2
 
-    for i, key, color in zip(range(3), ['WT', 'GluN1'], ['k', 'tab:blue']):
+    for i, key, color in zip(range(2), ['WT', 'GluN1'], ['k', 'tab:blue']):
 
         if (len(SUMMARY[key]['RESPONSES'])>0) and (len(SUMMARY[key]['RESPONSES'][0])>0):
 
-            resp = np.array([np.mean(r, axis=0) for r in SUMMARY[key]['RESPONSES']])
+            if average_by=='sessions':
+                resp = np.array([np.mean(r, axis=0) for r in SUMMARY[key]['RESPONSES']])
+            else:
+                resp = np.concatenate([r for r in SUMMARY[key]['RESPONSES']])
+                #resp = np.concatenate([r/np.max(r) for r in SUMMARY[key]['RESPONSES'] if np.max(r)>0])
 
-            AX[0].plot(SUMMARY['radii'][1:], np.mean(resp, axis=0)[1:], 'o', ms=2, color=color)
-            pt.plot(SUMMARY['radii'], np.mean(resp, axis=0), sy=np.std(resp, axis=0),
-                    ax=AX[0], color=color)
+            #AX[0].plot(SUMMARY['radii'][1:], np.mean(resp, axis=0)[1:], 'o', ms=2, color=color)
+            pt.scatter(SUMMARY['radii'][1:]+i*.3, np.mean(resp, axis=0)[1:],
+                       sy=stats.sem(resp, axis=0)[1:],
+                       ax=AX[i], color=color, ms=ms)
 
+            """
             center_norm_resp = np.array([r/rn for r, rn in zip(resp, resp[:,center_index])])
-            pt.plot(SUMMARY['radii'], np.mean(center_norm_resp, axis=0), sy=np.std(center_norm_resp, axis=0),
-                    ax=AX[1], color=color)
+            pt.scatter(SUMMARY['radii'], np.mean(center_norm_resp, axis=0),
+                       sy=stats.sem(center_norm_resp, axis=0),
+                       ax=AX[1], color=color, ms=ms)
 
             ff_norm_resp = np.array([r/rn for r, rn in zip(resp, resp[:,-1])])
-            pt.plot(SUMMARY['radii'], np.mean(ff_norm_resp, axis=0), sy=np.std(ff_norm_resp, axis=0),
-                    ax=AX[2], color=color)
+            pt.scatter(SUMMARY['radii'], np.mean(ff_norm_resp, axis=0),
+                       sy=stats.sem(ff_norm_resp, axis=0),
+                       ax=AX[2], color=color, ms=ms)
+            """
 
-        AX[-1].annotate(i*'\n'+'%s, N=%i sessions' % (key, len(resp)), (1,1),
-                        va='top', color=color, xycoords='axes fraction')
+        AX[i].annotate('n=%i%s' % (len(resp), average_by), (1,0),
+                        ha='right', color=color, xycoords='axes fraction')
+        AX[i].set_title(key, color=color)
 
-    AX[1].plot([SUMMARY['radii'][center_index], SUMMARY['radii'][center_index], 0],
-               [0,1,1], 'k:', lw=0.5)
-    AX[2].plot([SUMMARY['radii'][-1], SUMMARY['radii'][-1], 0], [0,1,1], 'k:', lw=0.5)
+    #AX[1].plot([SUMMARY['radii'][center_index], SUMMARY['radii'][center_index], 0],
+    #           [0,1,1], 'k:', lw=0.5)
+    #AX[2].plot([SUMMARY['radii'][-1], SUMMARY['radii'][-1], 0], [0,1,1], 'k:', lw=0.5)
 
-    for ax, ylabel in zip(AX,
-                         ['$\delta$ %s', 'center norm. $\delta$ %s', 'F.F. norm. $\delta$ %s']):
-        pt.set_plot(ax, xlabel='size ($^o$)',
-                    ylabel=ylabel % SUMMARY['quantity'].replace('dFoF', '$\Delta$F/F'))
+    for ax in AX:
+        pt.set_plot(ax, xlabel='stim. size ($^o$)',
+                    #xscale='log', xticks=[10,100], xticks_labels=['10', '100'], xlim=[9,101],
+                    ylabel='$\delta$ %s' % SUMMARY['quantity'].replace('dFoF', '$\Delta$F/F'))
 
     return fig
 
-fig = plot_summary(SUMMARY)
+SUMMARY = np.load('data/dFoF-summary.npy', allow_pickle=True).item()
+fig = plot_summary(SUMMARY, average_by='ROIs')
 #fig.savefig(os.path.join(os.path.expanduser('~'), 'Desktop', 'final.svg'))
 
 # %%
@@ -210,6 +224,13 @@ for neuropil_correction_factor in [0.7, 0.8, 0.9, 1.]:
                       allow_pickle=True).item()
     fig = plot_summary(SUMMARY)
     fig.suptitle('Neuropil-factor for substraction: %.1f' % neuropil_correction_factor)
+
+# %%
+for roi_to_neuropil_fluo_inclusion_factor in [1.1, 1.15, 1.2, 1.25, 1.3]:
+    SUMMARY = np.load('data/inclusion-factor-neuropil-%.1f-summary.npy' % roi_to_neuropil_fluo_inclusion_factor,
+                      allow_pickle=True).item()
+    fig = plot_summary(SUMMARY)
+    fig.suptitle('roiFluo/Neuropil inclusion-factor: %.2f' % roi_to_neuropil_fluo_inclusion_factor)
 
 # %%
 from physion.analysis.protocols.size_tuning import center_and_compute_size_tuning

@@ -84,10 +84,10 @@ def init_summary(DATASET):
 
 def orientation_selectivity_index(resp_pref, resp_90):
     """                                                                         
-     computes the selectivity index: (Pref-Orth)/(Pref+Orth)                     
+     computes the selectivity index: (Pref-Orth)/Pref
      clipped in [0,1] --> because resp_90 can be negative    
     """
-    return np.clip((resp_pref-np.clip(resp_90, 0, np.inf))/(resp_pref+resp_90), 0, 1)
+    return (resp_pref-np.clip(resp_90, 0, np.inf))/resp_pref
 
 stat_test_props = dict(interval_pre=[-1.,0],                                   
                        interval_post=[1.,2.],                                   
@@ -199,6 +199,15 @@ for neuropil_correction_factor in [0.7, 0.8, 0.9, 1.]:
     np.save('data/factor-neuropil-%.1f-ff-gratings.npy' % neuropil_correction_factor, SUMMARY)
     
 for roi_to_neuropil_fluo_inclusion_factor in [1.1, 1.15, 1.2, 1.25, 1.3]:
+    # rawFluo
+    SUMMARY = compute_summary_responses(DATASET, 
+                                   quantity='dFoF', 
+                                   roi_to_neuropil_fluo_inclusion_factor=roi_to_neuropil_fluo_inclusion_factor,
+                                   verbose=False)
+    np.save('data/inclusion-factor-neuropil-%.1f-ff-gratings.npy' % roi_to_neuropil_fluo_inclusion_factor, SUMMARY)
+
+# %%
+for roi_to_neuropil_fluo_inclusion_factor in [1.05]:
     # rawFluo
     SUMMARY = compute_summary_responses(DATASET, 
                                    quantity='dFoF', 
@@ -390,6 +399,15 @@ for neuropil_correction_factor in [0.7, 0.8, 0.9, 1.]:
         FIGS[0].suptitle('Neuropil-factor for substraction: %.1f' % neuropil_correction_factor)
     except BaseException as be:
         pass
+
+# %%
+for roi_to_neuropil_fluo_inclusion_factor in [1.05, 1.1, 1.15, 1.2, 1.25, 1.3]:
+    SUMMARY = np.load('data/inclusion-factor-neuropil-%.1f-ff-gratings.npy' % roi_to_neuropil_fluo_inclusion_factor,
+                      allow_pickle=True).item()
+    FIGS = generate_comparison_figs(SUMMARY, 'WT', 'GluN1',
+                                color1='k', color2='tab:blue')    
+    FIGS[0].suptitle('Roi/Neuropil inclusion-factor: %.2f' % roi_to_neuropil_fluo_inclusion_factor)
+
 
 # %%
 FIGS = generate_comparison_figs(SUMMARY, 'WT', 'WT_c=0.5',
