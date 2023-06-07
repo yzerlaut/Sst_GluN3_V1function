@@ -73,11 +73,11 @@ from physion.analysis.protocols.size_tuning import center_and_compute_size_tunin
 
 def run_dataset_analysis(DATASET,
                          quantity='dFoF',
-                         roi_to_neuropil_fluo_inclusion_factor=1.2,
-                         neuropil_correction_factor = 0.8,
+                         roi_to_neuropil_fluo_inclusion_factor=1.15,
+                         neuropil_correction_factor = 0.7,
                          method_for_F0 = 'sliding_percentile',
                          percentile=5., # percent
-                         sliding_window = 180.0, # seconds
+                         sliding_window = 300, # seconds
                          Nmax=999, # max datafiles (for debugging)
                          verbose=True):
 
@@ -137,7 +137,7 @@ for quantity in ['rawFluo', 'neuropil', 'dFoF']:
     SUMMARY = run_dataset_analysis(DATASET, quantity=quantity, verbose=False)
     np.save('data/%s-summary.npy' % quantity, SUMMARY)
     
-for neuropil_correction_factor in [0.7, 0.8, 0.9, 1.]:
+for neuropil_correction_factor in [0.6, 0.7, 0.8, 0.9]:
     # rawFluo
     SUMMARY = run_dataset_analysis(DATASET, quantity='dFoF', 
                                    neuropil_correction_factor=neuropil_correction_factor,
@@ -157,8 +157,15 @@ from scipy.special import erf
 from scipy.optimize import minimize
 
 def func(S, X):
+    """ fitting function """
     return X[0]*(erf(S/X[1])-X[3]*erf(S/X[2]))
 
+def angle_lin_to_true_angle(angle):
+    return 180./np.pi*np.arctan(angle/180.*np.pi)
+
+def suppression_index(resp1, resp2):
+    return np.clip((resp1-resp2)/resp1, 0, 1)
+    
 def plot_summary(SUMMARY,
                  average_by='sessions',
                  xscale='lin', ms=2):
@@ -171,48 +178,59 @@ def plot_summary(SUMMARY,
 
     center_index = 2
 
+    inset = pt.inset(AX[1], [1.6, .2, .4, .8])
+    
+    stim_size = 2*angle_lin_to_true_angle(SUMMARY['radii']) # radius to diameter + 
+    SIs = []
     for i, key, color in zip(range(2), ['WT', 'GluN1', 'GluN3'], ['k', 'tab:blue', 'g']):
 
-        if (len(SUMMARY[key]['RESPONSES'])>0) and (len(SUMMARY[key]['RESPONSES'][0])>0):
+        if average_by=='sessions':
+            resp = np.array([np.mean(r, axis=0) for r in SUMMARY[key]['RESPONSES']])
+            SIs = [suppression_index(np.mean(r[2:5]), np.mean(r[-3:])) for r in resp]
+        else:
+            resp = np.concatenate([r for r in SUMMARY[key]['RESPONSES']])
+            SIs.append([suppression_index(np.mean(r[2:5]), np.mean(r[-3:])) for r in resp])
 
-            if average_by=='sessions':
-                resp = np.array([np.mean(r, axis=0) for r in SUMMARY[key]['RESPONSES']])
-            else:
-                resp = np.concatenate([r for r in SUMMARY[key]['RESPONSES']])
+        # data
+        pt.scatter(stim_size, np.mean(resp, axis=0),
+                   sy=stats.sem(resp, axis=0),
+                   ax=AX[i], color=color, ms=ms)
 
-            # data
-            pt.scatter(SUMMARY['radii'], np.mean(resp, axis=0),
-                       sy=stats.sem(resp, axis=0),
-                       ax=AX[i], color=color, ms=ms)
-            
-            # fit
-            def to_minimize(x0):
-                return np.sum((resp.mean(axis=0)-\
-                               func(SUMMARY['radii'], x0))**2)
-            res = minimize(to_minimize,
-                           [3, 10, 40, 0])
-            x = np.linspace(0, SUMMARY['radii'][-1], 100)
-            AX[i].plot(x, func(x, res.x), lw=2, alpha=.5, color=color)
+        # fit
+        def to_minimize(x0):
+            return np.sum((resp.mean(axis=0)-\
+                           func(stim_size, x0))**2)
+        res = minimize(to_minimize,
+                       [3, 10, 40, 0])
+        x = np.linspace(0, stim_size[-1], 100)
+        AX[i].plot(x, func(x, res.x), lw=2, alpha=.5, color=color)
 
-            
         AX[i].annotate('n=%i %s' % (len(resp), average_by), (1,0), fontsize=7,
                         ha='right', color=color, xycoords='axes fraction')
         AX[i].set_title(key, color=color)
 
+    # suppression index
+    for i, key, color in zip(range(2), ['WT', 'GluN1', 'GluN3'], ['k', 'tab:blue', 'g']):
+        pt.violin(SIs[i], X=[i], ax=inset, COLORS=[color])
+    inset.plot([0,1], 1.05*np.ones(2), 'k-', lw=0.5)
+    inset.annotate('p=%.1e' % stats.mannwhitneyu(SIs[0], SIs[1]).pvalue,
+                   (0.5, 1.08), ha='center', fontsize=6)
+    
     for ax in AX:
         if xscale=='log':
             pt.set_plot(ax, xlabel='stim. size ($^o$)',
-                        xscale='log', xticks=[10,100], xticks_labels=['10', '100'], xlim=[9,109],
+                        xscale='log', #xticks=[10,100], xticks_labels=['10', '100'], xlim=[9,109],
                         ylabel='$\delta$ %s' % SUMMARY['quantity'].replace('dFoF', '$\Delta$F/F'))
         else:
             pt.set_plot(ax, xlabel='stim. size ($^o$)',
                         ylabel='$\delta$ %s' % SUMMARY['quantity'].replace('dFoF', '$\Delta$F/F'))
     pt.set_common_ylims(AX)
+    pt.set_plot(inset, xticks=[], ylabel='suppr. index', yticks=[0, 0.5, 1], ylim=[0, 1.09])
     return fig
 
 SUMMARY = np.load('data/dFoF-summary.npy', allow_pickle=True).item()
 fig = plot_summary(SUMMARY, average_by='ROIs')
-fig = plot_summary(SUMMARY, average_by='ROIs', xscale='log')
+#fig = plot_summary(SUMMARY, average_by='ROIs', xscale='log')
 #fig.savefig(os.path.join(os.path.expanduser('~'), 'Desktop', 'final.svg'))
 
 # %%
@@ -225,7 +243,8 @@ for neuropil_correction_factor in [0.7, 0.8, 0.9, 1.]:
     SUMMARY = np.load('data/factor-neuropil-%.1f-summary.npy' % neuropil_correction_factor,
                       allow_pickle=True).item()
     fig = plot_summary(SUMMARY, average_by='ROIs')
-    fig.suptitle('Neuropil-factor for substraction: %.1f\n\n' % neuropil_correction_factor)
+    plt.annotate('Neuropil-factor for substraction: %.1f\n\n' % neuropil_correction_factor,
+                 (1,1), xycoords='axes fraction')
 
 # %%
 for roi_to_neuropil_fluo_inclusion_factor in [1.1, 1.15, 1.2, 1.25, 1.3]:

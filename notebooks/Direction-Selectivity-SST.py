@@ -96,11 +96,11 @@ stat_test_props = dict(interval_pre=[-1.,0],
     
 def compute_summary_responses(DATASET,
                               quantity='dFoF',
-                              roi_to_neuropil_fluo_inclusion_factor=1.2,
-                              neuropil_correction_factor = 0.8,
+                              roi_to_neuropil_fluo_inclusion_factor=1.15,
+                              neuropil_correction_factor = 0.7,
                               method_for_F0 = 'sliding_percentile',
                               percentile=5., # percent
-                              sliding_window = 180.0, # seconds
+                              sliding_window = 300, # seconds
                               Nmax=999, # max datafiles (for debugging)
                               stat_test_props=dict(interval_pre=[-1.,0],                                   
                                                    interval_post=[1.,2.],                                   
@@ -191,23 +191,14 @@ for quantity in ['rawFluo', 'neuropil', 'dFoF']:
     SUMMARY = compute_summary_responses(DATASET, quantity=quantity, verbose=False)
     np.save('data/%s-ff-gratings.npy' % quantity, SUMMARY)
     
-for neuropil_correction_factor in [0.7, 0.8, 0.9, 1.]:
+for neuropil_correction_factor in [0.6, 0.7, 0.8, 0.9]:
     # rawFluo
     SUMMARY = compute_summary_responses(DATASET, quantity='dFoF', 
                                    neuropil_correction_factor=neuropil_correction_factor,
                                    verbose=False)
     np.save('data/factor-neuropil-%.1f-ff-gratings.npy' % neuropil_correction_factor, SUMMARY)
     
-for roi_to_neuropil_fluo_inclusion_factor in [1.1, 1.15, 1.2, 1.25, 1.3]:
-    # rawFluo
-    SUMMARY = compute_summary_responses(DATASET, 
-                                   quantity='dFoF', 
-                                   roi_to_neuropil_fluo_inclusion_factor=roi_to_neuropil_fluo_inclusion_factor,
-                                   verbose=False)
-    np.save('data/inclusion-factor-neuropil-%.1f-ff-gratings.npy' % roi_to_neuropil_fluo_inclusion_factor, SUMMARY)
-
-# %%
-for roi_to_neuropil_fluo_inclusion_factor in [1.05]:
+for roi_to_neuropil_fluo_inclusion_factor in [1.05, 1.1, 1.15, 1.2, 1.25, 1.3]:
     # rawFluo
     SUMMARY = compute_summary_responses(DATASET, 
                                    quantity='dFoF', 
