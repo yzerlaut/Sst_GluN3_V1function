@@ -32,6 +32,10 @@ folder = os.path.join(os.path.expanduser('~'), 'CURATED', 'SST-WT-NR1-GluN3-2023
 import warnings
 warnings.filterwarnings("ignore") # disable the UserWarning from pynwb (arrays are not well oriented)
 
+# %% [markdown]
+# ## Build the dataset from the NWB files
+
+# %%
 DATASET = scan_folder_for_NWBfiles(folder,
                                    verbose=False)
 
@@ -75,6 +79,9 @@ def init_summary(DATASET):
                 
     return SUMMARY
 
+
+# %% [markdown]
+# ## Analysis
 
 # %%
 # -------------------------------------------------- #
@@ -183,8 +190,8 @@ def compute_summary_responses(DATASET,
     return SUMMARY
 
 
-# %%
-SUMMARY = compute_summary_responses(DATASET, quantity='rawFluo', Nmax=2) # tex: max 2 !
+# %% [markdown]
+# ## Varying the preprocessing parameters
 
 # %%
 for quantity in ['rawFluo', 'neuropil', 'dFoF']:
@@ -192,202 +199,125 @@ for quantity in ['rawFluo', 'neuropil', 'dFoF']:
     np.save('data/%s-ff-gratings.npy' % quantity, SUMMARY)
     
 for neuropil_correction_factor in [0.6, 0.7, 0.8, 0.9]:
-    # rawFluo
     SUMMARY = compute_summary_responses(DATASET, quantity='dFoF', 
                                    neuropil_correction_factor=neuropil_correction_factor,
                                    verbose=False)
     np.save('data/factor-neuropil-%.1f-ff-gratings.npy' % neuropil_correction_factor, SUMMARY)
     
 for roi_to_neuropil_fluo_inclusion_factor in [1.05, 1.1, 1.15, 1.2, 1.25, 1.3]:
-    # rawFluo
     SUMMARY = compute_summary_responses(DATASET, 
                                    quantity='dFoF', 
                                    roi_to_neuropil_fluo_inclusion_factor=roi_to_neuropil_fluo_inclusion_factor,
                                    verbose=False)
     np.save('data/inclusion-factor-neuropil-%.1f-ff-gratings.npy' % roi_to_neuropil_fluo_inclusion_factor, SUMMARY)
 
+# %% [markdown]
+# ## Quantification & Data visualization
 
 # %%
-def plot_tunning_summary(shifted_angle,
-                         frac_resp,
-                         responses,
-                         OSIs):
-    """
-    """
-    fig, AX = pt.plt.subplots(1, 4, figsize=(8,1.5))
-    pt.plt.subplots_adjust(wspace=0.8, top=0.7, bottom=0.3)
+from scipy.optimize import minimize
 
-    RESPONSES = [np.mean(responses, axis=0) for responses in responses]
+def func(S, X):
+    """ fitting function """
+    nS = (S+90)%180-90
+    return X[0]*np.exp(-(nS**2/2./X[1]**2))+X[2]
+
+def selectivity_index(resp1, resp2):
+    return (resp1-np.clip(resp2, 0, resp1))/resp1
+
+def generate_comparison_figs(SUMMARY, 
+                             cases=['WT'],
+                             average_by='ROIs',
+                             colors=['k', 'tab:blue', 'tab:green'],
+                             norm='',
+                             ms=1):
     
-    # raw
-    pt.plot(shifted_angle, np.mean(RESPONSES, axis=0),
-            sy=stats.sem(RESPONSES, axis=0), ax=AX[0])
-    
-    
-    AX[0].set_ylabel('evoked $\Delta$F/F')
-    AX[0].set_title('raw resp.')
+    fig, ax = plt.subplots(1, figsize=(2, 1))
+    plt.subplots_adjust(top=0.9, bottom=0.2, right=0.6)
+    inset = pt.inset(ax, (1.7, 0.2, 0.3, 0.8))
 
-    for ax in AX[:2]:
-        ax.set_xlabel('angle ($^o$)')
-        ax.annotate('N=%i sessions'%len(responses), (1,1), fontsize=6,
-                    va='top', ha='right', xycoords='axes fraction')
+    SIs = []
+    for i, key in enumerate(cases):
 
-    # peak normalized
-    N_RESP = [resp/resp[1] for resp in RESPONSES]
-    pt.plot(shifted_angle, np.mean(N_RESP, axis=0),
-            sy=stats.sem(N_RESP, axis=0), ax=AX[1])
-
-    AX[1].set_yticks([0, 0.5, 1])
-    AX[1].set_ylabel('n. $\Delta$F/F')
-    AX[1].set_title('peak normalized')
-
-    # orientation selectivity index
-    AX[2].hist(np.concatenate([osi for osi in OSIs]), color='grey', bins=20, density=True)
-    AX[2].set_xlabel('OSI')
-    
-    # fraction responsive
-    pt.pie([np.mean(frac_resp), 1-np.mean(frac_resp)],
-           pie_labels=['%.1f%%' % (100.*np.mean(frac_resp)),
-                       '     %.1f%%' % (100.*(1-np.mean(frac_resp)))],
-           COLORS=[pt.plt.cm.tab10(2), pt.plt.cm.tab10(1)], ax=AX[3])
-    
-    NTOTs = [int(len(resp)/fr) for fr, resp in zip(frac_resp, responses)]
-    Ns = [len(resp) for resp in responses]
-    AX[3].annotate('responsive ROIS :\nN=%i sessions\n n= %i$\pm$%i / %i$\pm$%i ROIs  ' % (len(responses),
-                                                                        np.mean(Ns), np.std(Ns),
-                                                                        np.mean(NTOTs), np.std(NTOTs)),
-                   (0.5, 0), va='top', ha='center',
-                   xycoords='axes fraction')
-
-    return fig, AX
-
-# %%
-for key in ['WT', 'GluN1']:
-    fig, AX = plot_tunning_summary(SUMMARY['shifted_angle'],
-                                   SUMMARY[key]['FRAC_RESP'], 
-                                   SUMMARY[key]['RESPONSES'],
-                                   SUMMARY[key]['OSI'])
-    AX[3].set_title(key+' mice');
-
-
-# %%
-def generate_comparison_figs(SUMMARY, case1, case2,
-                             average_by='sessions',
-                             color1='k', color2='tab:blue'):
-    
-    fig1, AX1 = plt.subplots(1, 4, figsize=(6, 1))
-    plt.subplots_adjust(wspace=0.7, top=0.9, bottom=0.2, right=0.95)
-    AX1[0].annotate('average\nover\nsessions', (-1.2, 0.5), va='center', ha='center', xycoords='axes fraction')
-    
-
-    fig2, AX2 = plt.subplots(1, 4, figsize=(6, 1))
-    plt.subplots_adjust(wspace=0.7, top=0.9, bottom=0.2, right=0.95)
-    AX2[0].annotate('average\nover\nrois', (-1.2, 0.5), va='center', ha='center', xycoords='axes fraction')
-    
-    fig3, AX3 = pt.plt.subplots(1, 4, figsize=(6,1))
-    plt.subplots_adjust(wspace=0.7, top=0.9, bottom=0.2, right=0.95)
-    AX3[0].annotate('%s\n\n' % case1, (-1.2, 0.5), va='center', ha='center', xycoords='axes fraction', color=color1)
-    AX3[0].annotate('\n\n%s' % case2, (-1.2, 0.5), va='center', ha='center', xycoords='axes fraction', color=color2)
-
-    for i, key, color in zip(range(2),
-                             [case1, case2],
-                             [color1, color2]):
-
-        # sessions vs ROIs -- averages
-        for AX, RESPONSES, label in zip([AX1, AX2],
-                                 [[np.mean(responses, axis=0) for responses in SUMMARY[key]['RESPONSES']],
-                                   np.concatenate([responses for responses in SUMMARY[key]['RESPONSES']])],
-                                 ['N=%i', 'n=%i']):
+        if average_by=='sessions':
+            resp = np.array([np.mean(r, axis=0) for r in SUMMARY[key]['RESPONSES']])
+        else:
+            resp = np.concatenate([r for r in SUMMARY[key]['RESPONSES']])
+        resp = np.clip(resp, 0, np.inf) # CLIP RESPONSIVE TO POSITIVE VALUES
+        
+        if norm!='':
+            resp = np.divide(resp, np.max(resp, axis=1, keepdims=True))
             
-            # mean +/- sem vs mean +/- std plots
-            for ax, func in zip([AX[0], AX[2]], [stats.sem, np.std]):
-                pt.plot(SUMMARY['shifted_angle'], np.mean(RESPONSES, axis=0),
-                        func(RESPONSES, axis=0),
-                        ax=ax, color=color)
-                
-            for ax in AX:
-                ax.annotate(i*'\n'+label%len(RESPONSES), (1,1), xycoords='axes fraction',
-                            ha='right', va='top', color=color, fontsize=7)
+        SIs.append([selectivity_index(r[1], r[5]) for r in resp])
 
-            # responses normalized to prefered orientation
-            N_RESP = [resp/resp[1] for resp in RESPONSES]
-            # mean +/- sem vs mean +/- std plots
-            for ax, func in zip([AX[1], AX[3]], [stats.sem, np.std]):
-                pt.plot(SUMMARY['shifted_angle'], np.mean(N_RESP, axis=0),
-                        func(N_RESP, axis=0),
-                        ax=ax, color=color)
-                
-        # responsiveness
-        AX3[0].bar([i],
-                  [100*np.mean(SUMMARY[key]['FRAC_RESP'])],
-                  yerr=[100*np.std(SUMMARY[key]['FRAC_RESP'])],
-                  color=color)
-        AX3[0].annotate(i*'\n\n'+'%.1f $\pm$ %.0f %%\n N=%i' % (100*np.mean(SUMMARY[key]['FRAC_RESP']),
-                                                                         100*np.std(SUMMARY[key]['FRAC_RESP']),
-                                                                        len(SUMMARY[key]['RESPONSES'])),
-                        (1,1), xycoords='axes fraction', ha='right', va='top', color=color, fontsize=6)
+        # data
+        pt.scatter(SUMMARY['shifted_angle']+2*i, np.mean(resp, axis=0),
+                   sy=stats.sem(resp, axis=0), ax=ax, color=colors[i], ms=ms)
         
+        # fit
+        def to_minimize(x0):
+            return np.sum((resp.mean(axis=0)-\
+                           func(SUMMARY['shifted_angle'], x0))**2)
         
-        # violin plot of orientation selectivity index
-        OSIs = np.concatenate([osis for osis in SUMMARY[key]['OSI']])
-        pt.violin(OSIs, X=[i], ax=AX3[1], COLORS=[color])
-        AX3[1].annotate(i*'\n\n'+'%.2f $\pm$ %.2f \n n=%i rois' % (np.mean(OSIs),
-                                                                   np.std(OSIs),
-                                                                   len(OSIs)),
-                        (1,1), xycoords='axes fraction', ha='right', va='top', color=color, fontsize=6)
-        
-        # 
-        hist, be = np.histogram(OSIs, bins=20, density=True)
-        AX3[2].plot(.5*(be[:-1]+be[1:]), hist, color=color, lw=1)
-        
-        x = np.cumsum(hist)
-        AX3[3].plot(.5*(be[:-1]+be[1:]), x/x[-1], color=color)
+        res = minimize(to_minimize,
+                       [0.8, 10, 0.2])
+        x = np.linspace(-30, 180-30, 100)
+        ax.plot(x, func(x, res.x), lw=2, alpha=.5, color=colors[i])
 
-    for i, AX, label in zip(range(2),
-                            [AX1, AX2],
-                            ['N=%i sessions', 'n=%i ROIs']):
-        for ax in AX:
-            pt.set_plot(ax, xlabel='angle from pref. ($^o$)',
+        try:
+            if average_by=='sessions':
+                inset.annotate(i*'\n'+'\nN=%i %s (%i ROIs, %i mice)' % (len(resp),
+                                                    average_by, np.sum([len(r) for r in SUMMARY[key]['RESPONSES']]),
+                                                    len(np.unique(SUMMARY[key]['subjects']))),
+                               (0,0), fontsize=7,
+                               va='top',color=colors[i], xycoords='axes fraction')
+            else:
+                inset.annotate(i*'\n'+'\nn=%i %s (%i sessions, %i mice)' % (len(resp),
+                                                    average_by, len(SUMMARY[key]['RESPONSES']),
+                                                                    len(np.unique(SUMMARY[key]['subjects']))),
+                               (0,0), fontsize=7,
+                               va='top',color=colors[i], xycoords='axes fraction')
+        except BaseException as be:
+            pass
+            
+        
+    # selectivity index
+    for i, key in enumerate(cases):
+        pt.violin(SIs[i], X=[i], ax=inset, COLORS=[colors[i]])
+    if len(cases)==2:
+        inset.plot([0,1], 1.05*np.ones(2), 'k-', lw=0.5)
+        inset.annotate('Mann-Whitney: p=%.1e' % stats.mannwhitneyu(SIs[0], SIs[1]).pvalue,
+                       (0, 1.09), fontsize=6)
+    pt.set_plot(inset, xticks=[], ylabel='select. index', yticks=[0, 0.5, 1], ylim=[0, 1.09])
+
+    ylabel=norm+'$\delta$ %s' % SUMMARY['quantity'].replace('dFoF', '$\Delta$F/F')
+    pt.set_plot(ax, xlabel='angle ($^o$) from pref.',
+                ylabel=ylabel,
+                #yticks=[0.4,0.6,0.8,1],
                 xticks=SUMMARY['shifted_angle'],
-                xticks_labels=['%.0f'%s if (i%2==1) else '' for i,s in enumerate(SUMMARY['shifted_angle'])])
-            
-        for ax in [AX[0], AX[2]]:
-            ax.set_ylabel('$\delta$ %s' % SUMMARY['quantity'].replace('dFoF', '$\Delta$F/F'))
-        for ax in [AX[1], AX[3]]:
-            ax.set_ylabel('norm. $\delta$ %s' % SUMMARY['quantity'].replace('dFoF', '$\Delta$F/F'))
-        for ax in AX[:2]:
-            ax.set_title('mean$\pm$s.e.m.', fontsize=6)
-        for ax in AX[2:]:
-            ax.set_title('mean$\pm$s.d.', fontsize=6)
+                xticks_labels=['%.0f'%s if (i%4==1) else '' for i,s in enumerate(SUMMARY['shifted_angle'])])
 
-    # statistical analysis
-    pval = stats.mannwhitneyu([np.mean(responses) for responses in SUMMARY[case1]['RESPONSES']],
-                              [np.mean(responses) for responses in SUMMARY[case2]['RESPONSES']]).pvalue
-    AX3[0].set_title('Mann-Whitney:\np=%.1e' % pval, fontsize=6)
-    pval = stats.mannwhitneyu(np.concatenate([osis for osis in SUMMARY[case1]['OSI']]),
-                              np.concatenate([osis for osis in SUMMARY[case2]['OSI']])).pvalue
-    AX3[1].set_title('Mann-Whitney:\np=%.1e' % pval, fontsize=6)
-    
-    pt.set_plot(AX3[0], ylabel='fraction (%)\nresponsive', xticks=[], yticks=[0,50,100], xlim=[-1, 6])
-    pt.set_plot(AX3[1], ylabel='OSI', xticks=[], xlim=[-1, 6])
-    pt.set_plot(AX3[2], ylabel='density', xlabel='OSI', xticks=[0, 0.5, 1])
-    pt.set_plot(AX3[3], ylabel='cum. frac.', xlabel='OSI', yticks=[0,0.5,1], xticks=[0, 0.5, 1])
+    return fig, ax
 
-    return fig1, fig2, fig3
+SUMMARY = np.load('data/dFoF-ff-gratings.npy', allow_pickle=True).item()
+fig, ax = generate_comparison_figs(SUMMARY, ['WT', 'GluN1'], average_by='sessions', norm='norm. ')
+fig, ax = generate_comparison_figs(SUMMARY, ['WT', 'GluN1'], average_by='ROIs', norm='norm. ')
+fig, ax = generate_comparison_figs(SUMMARY, ['WT', 'WT_c=0.5'], average_by='ROIs', norm='norm. ',
+                                   colors=['k', 'tab:grey'])
+ax.set_title('WT: full vs half contrast');
 
+# %%
 for quantity in ['rawFluo', 'neuropil', 'dFoF']:
     SUMMARY = np.load('data/%s-ff-gratings.npy' % quantity, allow_pickle=True).item()
-    FIGS = generate_comparison_figs(SUMMARY, 'WT', 'GluN1',
-                                color1='k', color2='tab:blue')
+    _ = generate_comparison_figs(SUMMARY, ['WT', 'GluN1'])
 
 # %%
-for neuropil_correction_factor in [0.7, 0.8, 0.9, 1.]:
+for neuropil_correction_factor in [0.6, 0.7, 0.8, 0.9, 1.]:
     try:
         SUMMARY = np.load('data/factor-neuropil-%.1f-ff-gratings.npy' % neuropil_correction_factor,
                           allow_pickle=True).item()
-        FIGS = generate_comparison_figs(SUMMARY, 'WT', 'GluN1',
-                                    color1='k', color2='tab:blue')    
-        FIGS[0].suptitle('Neuropil-factor for substraction: %.1f' % neuropil_correction_factor)
+        fig, ax = generate_comparison_figs(SUMMARY, ['WT', 'GluN1'], norm='norm. ')    
+        ax.set_title('Neuropil-factor\nfor substraction: %.1f' % neuropil_correction_factor)
     except BaseException as be:
         pass
 
@@ -395,18 +325,19 @@ for neuropil_correction_factor in [0.7, 0.8, 0.9, 1.]:
 for roi_to_neuropil_fluo_inclusion_factor in [1.05, 1.1, 1.15, 1.2, 1.25, 1.3]:
     SUMMARY = np.load('data/inclusion-factor-neuropil-%.1f-ff-gratings.npy' % roi_to_neuropil_fluo_inclusion_factor,
                       allow_pickle=True).item()
-    FIGS = generate_comparison_figs(SUMMARY, 'WT', 'GluN1',
-                                color1='k', color2='tab:blue')    
-    FIGS[0].suptitle('Roi/Neuropil inclusion-factor: %.2f' % roi_to_neuropil_fluo_inclusion_factor)
+    fig, ax = generate_comparison_figs(SUMMARY, ['WT', 'GluN1'], norm='norm. ')    
+    ax.set_title('Roi/Neuropil\ninclusion-factor: %.2f' % roi_to_neuropil_fluo_inclusion_factor)
 
 
 # %%
-FIGS = generate_comparison_figs(SUMMARY, 'WT', 'WT_c=0.5',
-                                color1='k', color2='grey')
+fig, ax = generate_comparison_figs(SUMMARY, ['WT', 'WT_c=0.5'],
+                                   colors=['k', 'grey'], norm='norm. ')
+ax.set_title('WT: full vs half contrast');
 
 # %%
-FIGS = generate_comparison_figs(SUMMARY, 'GluN1', 'GluN1_c=0.5',
-                                color1='tab:blue', color2='tab:cyan')
+fig, ax = generate_comparison_figs(SUMMARY, ['GluN1', 'GluN1_c=0.5'],
+                                colors=['tab:blue', 'tab:cyan'], norm='norm. ')
+ax.set_title('GluN1: full vs half contrast');
 
 # %% [markdown]
 # ## Testing different "visual-responsiveness" criteria
@@ -536,7 +467,8 @@ def cell_tuning_example_fig(filename,
         
     return fig
 
-fig = cell_tuning_example_fig('/home/yann/CURATED/SST-WT-NR1-GluN3-2023/2023_02_15-13-30-47.nwb',
+folder = os.path.join(os.path.expanduser('~'), 'CURATED','SST-WT-NR1-GluN3-2023')
+fig = cell_tuning_example_fig(os.path.join(folder, '2023_02_15-13-30-47.nwb'),
                              contrast=1)
 
 # %%
@@ -561,7 +493,7 @@ import plot_tools as pt
 import warnings
 warnings.filterwarnings("ignore") # disable the UserWarning from pynwb (arrays are not well oriented)
 
-data = Data('/home/yann/CURATED/SST-WT-NR1-GluN3-2023/2023_02_15-13-30-47.nwb',
+data = Data(os.path.join(folder, '2023_02_15-13-30-47.nwb'),
             with_visual_stim=True)
 data.init_visual_stim()
 
@@ -608,3 +540,5 @@ show_CaImaging_FOV(data, key='max_proj', NL=3, roiIndices='all')
 
 # %%
 show_CaImaging_FOV(data, key='max_proj', NL=3)
+
+# %%
