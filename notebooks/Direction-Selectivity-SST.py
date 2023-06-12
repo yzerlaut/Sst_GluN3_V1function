@@ -223,7 +223,7 @@ def func(S, X):
     return X[0]*np.exp(-(nS**2/2./X[1]**2))+X[2]
 
 def selectivity_index(resp1, resp2):
-    return (resp1-np.clip(resp2, 0, resp1))/resp1
+    return (resp1-np.clip(resp2, 0, np.inf))/resp1
 
 def generate_comparison_figs(SUMMARY, 
                              cases=['WT'],
