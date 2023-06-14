@@ -6,7 +6,7 @@
 #       extension: .py
 #       format_name: percent
 #       format_version: '1.3'
-#       jupytext_version: 1.14.1
+#       jupytext_version: 1.14.5
 #   kernelspec:
 #     display_name: Python 3 (ipykernel)
 #     language: python
@@ -65,6 +65,10 @@ for cType in ['MC', 'BC']:
     for i, ID in enumerate(DATASET['%s_id' % cType]):
         swc_correction(ID)
 
+# %%
+print(DATASET.keys())
+DATASET['cell_types']
+
 
 # %% [markdown]
 # ## 2) Plot all morphologies
@@ -115,36 +119,48 @@ fig, AX = plot_all_morphologies('BC')#, axon_color=None)
 # %% [markdown]
 # # Visualize Morphology with synapses
 
-# %%
-np.flatnonzero(np.array(DATASET['BC_id'],dtype=int)==864691135100167712)
+# %% [markdown]
+# ### Basket cell example
 
 # %%
-DATASET['BC_id']
+BC_example_ID = 864691135100167712
+BC_example_index = np.flatnonzero(np.array(DATASET['BC_id'],dtype=int)==BC_example_ID)[0]
 
-# %%
-df = '../data/SchneiderMizell_et_al_2023/skeletons/swc/864691134885028602.swc'
-
-def correction(df):
-    fixed = ''
-    with open(df, "r") as file:
-        for i, line in enumerate(file):
-            if i==0:
-                fixed += '0 1 '+line[4:]
-                print(fixed)
-            else:
-                n = len('%i '%i)
-                fixed += '%i '%(i)+line[n:]
-    with open(df.replace('swc', '_fixed'), 'w') as f:
-        f.write(fixed)
-
-
-# %%
-morpho = nrn.Morphology.from_swc_file(df.replace('swc', '_fixed'))
-
-# %%
+morpho = nrn.Morphology.from_swc_file(os.path.join(datafolder,
+                                                   'skeletons', '_fixed', '%s.swc' % BC_example_ID))
 SEGMENTS = nrn.morpho_analysis.compute_segments(morpho)
 vis = nrnvyz(SEGMENTS)
-vis.plot_segments(cond=(SEGMENTS['comp_type']!='axon'))
+vis.plot_segments(cond=(SEGMENTS['comp_type']!='axon'),
+                  bar_scale_args=None)
 
+
+# %% [markdown]
+# ### Martinotti cell example
+
+# %%
+MC_example_ID = 864691135467660940
+MC_example_index = np.flatnonzero(np.array(DATASET['MC_id'],dtype=int)==MC_example_ID)[0]
+
+morpho = nrn.Morphology.from_swc_file(os.path.join(datafolder,
+                                                   'skeletons', '_fixed', '%s.swc' % MC_example_ID))
+SEGMENTS = nrn.morpho_analysis.compute_segments(morpho)
+vis = nrnvyz(SEGMENTS)
+vis.plot_segments(cond=(SEGMENTS['comp_type']!='axon'),
+                  bar_scale_args=None)
+
+# %%
+bins = np.linspace(25, )
+SEGMENTS.keys()
+
+# %%
+cond = SEGMENTS['comp_type']!='axon'
+plt.hist(1e6*SEGMENTS['distance_to_soma'][cond])
+
+# %%
+cond = (SEGMENTS['comp_type']!='axon') & (SEGMENTS['comp_type']!='soma')
+plt.hist(1e6*SEGMENTS['diameter'][cond])
+
+# %%
+np.unique(SEGMENTS['comp_type'])
 
 # %%
